@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { Fragment, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/context';
 import { CONDITIONS, type Handover, type HandoverItem, type Condition } from '../data/types';
 import { PageHead, Section, Status, DataTable, Input, Select, SearchSelect, ReadOnly, Alert, useAction, fmtDate, fmtDateTime, type Column } from '../components/ui';
 import { HandoverDoc, ClearanceDoc } from '../documents';
+import { parseAccessories, serializeAccessories, roman } from '../lib/accessories';
 import { askReason } from '../components/Dialog';
 
 const ACK = 'I acknowledge that I have received the company assets listed above in the stated condition. I accept responsibility for their proper use, protection and return in accordance with company policy. I will immediately report any loss, damage or malfunction.';
@@ -107,9 +108,14 @@ export function HandoverNew() {
     return a && a.status === 'Available' ? [{ assetId: a.id, condition: a.condition, quantity: 1, accessories: a.accessories ?? '', remarks: '' }] : [];
   });
   const [pick, setPick] = useState('');
+  // Editable accessory rows per asset (kept in state so a new blank row can exist before it is named).
+  type Acc = { name: string; model: string; qty: number };
+  const [accRows, setAccRows] = useState<Record<string, Acc[]>>(() => Object.fromEntries(items.map(it => [it.assetId, parseAccessories(it.accessories)])));
+  const rowsFor = (assetId: string, fallback: string) => accRows[assetId] ?? parseAccessories(fallback);
+  const setRows = (i: number, assetId: string, list: Acc[]) => { setAccRows(r => ({ ...r, [assetId]: list })); upd(i, { accessories: serializeAccessories(list) }); };
   const emp = store.employee(employeeId);
   const available = db.assets.filter(a => a.status === 'Available' && !items.some(i => i.assetId === a.id));
-  const add = () => { const a = store.asset(pick); if (!a) return; setItems([...items, { assetId: a.id, condition: a.condition, quantity: 1, accessories: a.accessories ?? '', remarks: '' }]); setPick(''); };
+  const add = () => { const a = store.asset(pick); if (!a) return; setItems([...items, { assetId: a.id, condition: a.condition, quantity: 1, accessories: a.accessories ?? '', remarks: '' }]); setAccRows(r => ({ ...r, [a.id]: parseAccessories(a.accessories) })); setPick(''); };
   const upd = (i: number, p: Partial<HandoverItem>) => setItems(items.map((it, j) => j === i ? { ...it, ...p } : it));
 
   const submit = (e: FormEvent) => {
@@ -145,18 +151,33 @@ export function HandoverNew() {
         </Section>
         <Section title="Assets to Assign" compact right={<div className="btn-row"><SearchSelect className="tb" style={{ minWidth: 320 }} value={pick} onChange={e => setPick(e.target.value)} placeholder="Add available asset…" options={available.map(a => ({ value: a.id, label: `${a.id} — ${a.name} (${a.serialNumber})` }))} /><button type="button" className="btn sm" disabled={!pick} onClick={add}>Add</button></div>}>
           <table className="data">
-            <thead><tr><th>#</th><th>Asset ID</th><th>Asset Type</th><th>Make and Model</th><th>Serial / IMEI / SIM</th><th>Condition</th><th>Qty</th><th>Accessories</th><th>Remarks</th><th /></tr></thead>
+            <thead><tr><th>#</th><th>Asset ID / Accessories</th><th>Asset Type</th><th>Make and Model</th><th>Serial / IMEI / SIM</th><th>Condition</th><th>Qty</th><th>Remarks</th><th /></tr></thead>
             <tbody>
-              {items.length === 0 && <tr><td className="empty" colSpan={10}>No assets added. Only Available assets are listed.</td></tr>}
-              {items.map((it, i) => { const a = store.asset(it.assetId)!; return (
-                <tr key={it.assetId}>
-                  <td>{i + 1}</td><td className="mono">{a.id}</td><td>{store.catName(a.categoryId)}</td><td>{a.manufacturer} {a.model}</td><td className="mono">{[a.serialNumber, a.imei, a.sim].filter(Boolean).join(' / ')}</td>
-                  <td><SearchSelect className="tb" style={{ minWidth: 120 }} value={it.condition} onChange={e => upd(i, { condition: e.target.value as Condition })} options={CONDITIONS.map(c => ({ value: c, label: c }))} /></td>
-                  <td><input type="number" min={1} value={it.quantity} onChange={e => upd(i, { quantity: Number(e.target.value) })} style={{ width: 54, padding: 4, fontFamily: 'inherit' }} /></td>
-                  <td><input value={it.accessories} onChange={e => upd(i, { accessories: e.target.value })} placeholder="Charger - Moto 33W, Back case x2" title="Comma-separated. Use 'name - model' and 'x2' for quantity; each accessory prints as its own row on the form." style={{ width: '100%', padding: 4, fontFamily: 'inherit', minWidth: 180 }} /></td>
-                  <td><input value={it.remarks} onChange={e => upd(i, { remarks: e.target.value })} style={{ width: '100%', padding: 4, fontFamily: 'inherit' }} /></td>
-                  <td><button type="button" className="btn sm ghost" onClick={() => setItems(items.filter((_, j) => j !== i))}>Remove</button></td>
-                </tr>); })}
+              {items.length === 0 && <tr><td className="empty" colSpan={9}>No assets added. Only Available assets are listed.</td></tr>}
+              {items.map((it, i) => { const a = store.asset(it.assetId)!; const acc = rowsFor(it.assetId, it.accessories);
+                const setAcc = (list: Acc[]) => setRows(i, it.assetId, list);
+                const cell = { width: '100%', padding: 4, fontFamily: 'inherit' } as const;
+                return (
+                <Fragment key={it.assetId}>
+                  <tr>
+                    <td>{i + 1}</td><td className="mono"><b>{a.id}</b></td><td>{store.catName(a.categoryId)}</td><td>{a.manufacturer} {a.model}</td><td className="mono">{[a.serialNumber, a.imei, a.sim].filter(Boolean).join(' / ')}</td>
+                    <td><SearchSelect className="tb" style={{ minWidth: 120 }} value={it.condition} onChange={e => upd(i, { condition: e.target.value as Condition })} options={CONDITIONS.map(c => ({ value: c, label: c }))} /></td>
+                    <td><input type="number" min={1} value={it.quantity} onChange={e => upd(i, { quantity: Number(e.target.value) })} style={{ width: 54, padding: 4, fontFamily: 'inherit' }} /></td>
+                    <td><input value={it.remarks} onChange={e => upd(i, { remarks: e.target.value })} style={cell} /></td>
+                    <td><button type="button" className="btn sm ghost" onClick={() => setItems(items.filter((_, j) => j !== i))}>Remove</button></td>
+                  </tr>
+                  {acc.map((x, j) => (
+                    <tr key={j} className="sub">
+                      <td style={{ textAlign: 'right', color: 'var(--grey-500)' }}>{roman(j + 1)}</td><td className="muted">Accessories</td>
+                      <td><input value={x.name} placeholder="e.g. Charger" onChange={e => setAcc(acc.map((y, k) => k === j ? { ...y, name: e.target.value } : y))} style={cell} /></td>
+                      <td><input value={x.model} placeholder="model / details" onChange={e => setAcc(acc.map((y, k) => k === j ? { ...y, model: e.target.value } : y))} style={cell} /></td>
+                      <td /><td />
+                      <td><input type="number" min={1} value={x.qty} onChange={e => setAcc(acc.map((y, k) => k === j ? { ...y, qty: Math.max(1, Number(e.target.value) || 1) } : y))} style={{ width: 54, padding: 4, fontFamily: 'inherit' }} /></td>
+                      <td /><td><button type="button" className="btn sm ghost" onClick={() => setAcc(acc.filter((_, k) => k !== j))}>Remove</button></td>
+                    </tr>
+                  ))}
+                  <tr className="sub"><td /><td colSpan={8}><button type="button" className="btn sm" onClick={() => setAcc([...acc, { name: '', model: '', qty: 1 }])}>+ Add accessory</button></td></tr>
+                </Fragment>); })}
             </tbody>
           </table>
         </Section>

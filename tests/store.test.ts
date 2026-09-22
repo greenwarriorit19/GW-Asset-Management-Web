@@ -527,3 +527,13 @@ describe('Bulk import (Excel)', () => {
     expect(v[0].data).toMatchObject({ name: 'Excel Phone', serialNumber: 'XL-1', purchaseDate: '2026-09-01', purchaseCost: 12000, condition: 'Good', accessories: 'Charger' });
   });
 });
+
+describe('Accessory serialization', () => {
+  it('round-trips accessory rows to the stored string and back', async () => {
+    const { parseAccessories, serializeAccessories } = await import('../src/lib/accessories');
+    const list = [{ name: 'Charger', model: 'Moto 33W', qty: 1 }, { name: 'Back case', model: '', qty: 2 }, { name: '', model: 'ignored', qty: 1 }];
+    const str = serializeAccessories(list);
+    expect(str).toBe('Charger - Moto 33W, Back case x2');
+    expect(parseAccessories(str)).toEqual([{ name: 'Charger', model: 'Moto 33W', qty: 1 }, { name: 'Back case', model: '', qty: 2 }]);
+  });
+});

@@ -9,3 +9,8 @@ export function parseAccessories(text?: string): { name: string; model: string; 
   });
 }
 export const roman = (n: number) => ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x', 'xi', 'xii'][n - 1] ?? String(n);
+
+/** Inverse of parseAccessories: [{ name, model, qty }] → "Charger - Moto 33W x2, Back case" */
+export function serializeAccessories(list: { name: string; model: string; qty: number }[]): string {
+  return list.filter(a => a.name.trim()).map(a => `${a.name.trim()}${a.model.trim() ? ` - ${a.model.trim()}` : ''}${a.qty > 1 ? ` x${a.qty}` : ''}`).join(', ');
+}

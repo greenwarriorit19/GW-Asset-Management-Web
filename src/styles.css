@@ -166,6 +166,9 @@ table.data td .ss .ss-list { min-width: 160px; }
 .dp .dp-foot { display: flex; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--grey-200); }
 .modal .dp .dp-pop { position: absolute; }
 
+table.data tr.sub td { background: rgba(112,121,140,0.06); padding-top: 4px; padding-bottom: 4px; font-size: 12px; }
+table.data tr.sub td input { background: rgba(255,255,255,0.85); border: 1px solid var(--grey-300); border-radius: 6px; }
+
 /* ---------- Buttons ---------- */
 .btn { font-family: inherit; font-size: 12.5px; font-weight: 500; padding: 7px 14px; border: 1px solid var(--navy); background: var(--white); color: var(--navy); cursor: pointer; border-radius: 0; line-height: 1.2; white-space: nowrap; }
 .btn:hover { background: var(--navy-100); }
