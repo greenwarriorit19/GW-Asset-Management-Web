@@ -158,6 +158,17 @@ export function DataTable<T extends { id: string }>({ rows, columns, onRowClick,
   );
 }
 
+/** Edit / Delete buttons for master-data rows. `blockers` non-empty → Delete disabled with the reasons as tooltip. */
+export function RowActions({ onEdit, onDelete, blockers = [], label }: { onEdit: () => void; onDelete: (reason: string) => void; blockers?: string[]; label: string }) {
+  return (
+    <div className="btn-row" style={{ flexWrap: 'nowrap', justifyContent: 'flex-end' }} onClick={e => e.stopPropagation()}>
+      <button type="button" className="btn sm" onClick={onEdit}>Edit</button>
+      <button type="button" className="btn sm danger" disabled={blockers.length > 0} title={blockers.length ? `Cannot delete: ${blockers.join('; ')}` : `Delete ${label}`}
+        onClick={() => { const reason = prompt(`Delete ${label}? Enter a reason:`); if (reason) onDelete(reason); }}>Delete</button>
+    </div>
+  );
+}
+
 // ---------- Formatting ----------
 export const fmtDate = (d?: string) => d ? new Date(d.length === 10 ? d + 'T00:00:00' : d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 export const fmtDateTime = (d?: string) => d ? new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';

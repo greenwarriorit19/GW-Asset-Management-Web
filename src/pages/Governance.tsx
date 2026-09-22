@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/context';
 import { type AuditLog, type AssetDocument, type Attachment, type User, type Role, type Employee, type Category, type Department, type Location, type RoleDef } from '../data/types';
 import { PERMISSION_GROUPS, type Permission } from '../data/store';
-import { PageHead, Section, Status, DataTable, Input, Select, SearchSelect, FileInput, AttachmentLink, Modal, useAction, fmtDateTime, fmtSize, type Column } from '../components/ui';
+import { PageHead, Section, Status, DataTable, Input, Select, SearchSelect, FileInput, AttachmentLink, Modal, RowActions, useAction, fmtDateTime, fmtSize, type Column } from '../components/ui';
 import { getDriveConfig, setDriveConfig, testDriveConnection, signOutDrive, DEFAULT_FOLDER_ID, type DriveConfig } from '../lib/drive';
 import { exportRows } from '../lib/export';
 
@@ -137,6 +137,7 @@ export function UsersPage() {
     { key: 'emp', header: 'Employee', render: u => store.employee(u.employeeId)?.employeeCode ?? '—' },
     { key: 'dept', header: 'Department', render: u => store.deptName(u.departmentId) },
     { key: 'active', header: 'Status', render: u => <Status value={u.active ? 'Active' : 'Inactive'} /> },
+    { key: 'actions', header: 'Actions', render: u => <RowActions label={`user ${u.name}`} blockers={store.userDeleteBlockers(u.id)} onEdit={() => { setLoginMsg(null); setPassword(''); setEdit({ ...u }); }} onDelete={reason => run(() => store.deleteUser(u.id, reason), 'User deleted.')} /> },
   ];
   const roleRows = roles.map(r => ({ ...r, id: r.code }));
   const togglePerm = (p: Permission) => roleEdit && setRoleEdit({ ...roleEdit, permissions: roleEdit.permissions.includes(p) ? roleEdit.permissions.filter(x => x !== p) : [...roleEdit.permissions, p] });
@@ -158,6 +159,7 @@ export function UsersPage() {
           { key: 'perms', header: 'Permissions', num: true, render: r => r.permissions.length },
           { key: 'users', header: 'Users', num: true, render: r => db.users.filter(u => u.role === r.code).length },
           { key: 'type', header: 'Type', render: r => <Status value={r.builtIn ? 'Built-in' : 'Custom'} /> },
+          { key: 'actions', header: 'Actions', render: r => <RowActions label={`role ${r.name}`} blockers={store.roleDeleteBlockers(r.code)} onEdit={() => { setIsNewRole(false); setRoleEdit({ code: r.code, name: r.name, description: r.description, permissions: [...r.permissions], builtIn: r.builtIn }); }} onDelete={reason => run(() => store.deleteRole(r.code, reason), 'Role deleted.')} /> },
         ]} />
       </Section>
 
@@ -259,16 +261,20 @@ export function SettingsPage() {
       <div className="tabs">{(['employees', 'categories', 'departments', 'locations', 'drive', 'data'] as const).map(t => <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>{t === 'data' ? 'Data' : t === 'drive' ? 'Google Drive' : t[0].toUpperCase() + t.slice(1)}</button>)}</div>
 
       {tab === 'employees' && <Section title="Employees" compact right={<button className="btn sm primary" onClick={() => setEmp({ id: `E-${Date.now().toString(36).toUpperCase()}`, employeeCode: nextEmpCode, name: '', designation: '', departmentId: db.departments[0]?.id ?? '', dateOfJoining: '', workLocationId: db.locations[0]?.id ?? '', mobile: '', email: '', active: true })}>Add Employee</button>}>
-        <DataTable rows={db.employees} onRowClick={e => setEmp({ ...e })} columns={[{ key: 'employeeCode', header: 'Employee ID' }, { key: 'name', header: 'Name' }, { key: 'designation', header: 'Designation' }, { key: 'dept', header: 'Department', render: e => store.deptName(e.departmentId) }, { key: 'loc', header: 'Location', render: e => store.locName(e.workLocationId) }, { key: 'mobile', header: 'Mobile' }, { key: 'assets', header: 'Assets Held', num: true, render: e => db.assets.filter(a => a.custodianEmployeeId === e.id).length }, { key: 'active', header: 'Status', render: e => <Status value={e.active ? 'Active' : 'Inactive'} /> }]} />
+        <DataTable rows={db.employees} onRowClick={e => setEmp({ ...e })} columns={[{ key: 'employeeCode', header: 'Employee ID' }, { key: 'name', header: 'Name' }, { key: 'designation', header: 'Designation' }, { key: 'dept', header: 'Department', render: e => store.deptName(e.departmentId) }, { key: 'loc', header: 'Location', render: e => store.locName(e.workLocationId) }, { key: 'mobile', header: 'Mobile' }, { key: 'assets', header: 'Assets Held', num: true, render: e => db.assets.filter(a => a.custodianEmployeeId === e.id).length }, { key: 'active', header: 'Status', render: e => <Status value={e.active ? 'Active' : 'Inactive'} /> },
+          { key: 'actions', header: 'Actions', render: e => <RowActions label={`employee ${e.name}`} blockers={store.employeeDeleteBlockers(e.id)} onEdit={() => setEmp({ ...e })} onDelete={reason => run(() => store.deleteEmployee(e.id, reason), 'Employee deleted.')} /> }]} />
       </Section>}
       {tab === 'categories' && <Section title="Asset Categories" compact right={<button className="btn sm primary" onClick={() => setCat({ id: `C-${Date.now().toString(36).toUpperCase()}`, code: '', name: '', verificationIntervalMonths: 6 })}>Add Category</button>}>
-        <DataTable rows={db.categories} onRowClick={c => setCat({ ...c })} columns={[{ key: 'code', header: 'Code' }, { key: 'name', header: 'Category' }, { key: 'prefix', header: 'Asset ID Format', render: c => <span className="mono">GW-AST-{c.code}-0001</span> }, { key: 'count', header: 'Assets', num: true, render: c => db.assets.filter(a => a.categoryId === c.id).length }]} />
+        <DataTable rows={db.categories} onRowClick={c => setCat({ ...c })} columns={[{ key: 'code', header: 'Code' }, { key: 'name', header: 'Category' }, { key: 'prefix', header: 'Asset ID Format', render: c => <span className="mono">GW-AST-{c.code}-0001</span> }, { key: 'count', header: 'Assets', num: true, render: c => db.assets.filter(a => a.categoryId === c.id).length },
+          { key: 'actions', header: 'Actions', render: c => <RowActions label={`category ${c.name}`} blockers={store.categoryDeleteBlockers(c.id)} onEdit={() => setCat({ ...c })} onDelete={reason => run(() => store.deleteCategory(c.id, reason), 'Category deleted.')} /> }]} />
       </Section>}
       {tab === 'departments' && <Section title="Departments" compact right={<button className="btn sm primary" onClick={() => setDep({ id: `D-${Date.now().toString(36).toUpperCase()}`, code: '', name: '' })}>Add Department</button>}>
-        <DataTable rows={db.departments} onRowClick={d => setDep({ ...d })} columns={[{ key: 'code', header: 'Code' }, { key: 'name', header: 'Department' }, { key: 'head', header: 'Department Head', render: d => store.employeeName(d.headEmployeeId) }, { key: 'count', header: 'Assets', num: true, render: d => db.assets.filter(a => a.departmentId === d.id).length }]} />
+        <DataTable rows={db.departments} onRowClick={d => setDep({ ...d })} columns={[{ key: 'code', header: 'Code' }, { key: 'name', header: 'Department' }, { key: 'head', header: 'Department Head', render: d => store.employeeName(d.headEmployeeId) }, { key: 'count', header: 'Assets', num: true, render: d => db.assets.filter(a => a.departmentId === d.id).length },
+          { key: 'actions', header: 'Actions', render: d => <RowActions label={`department ${d.name}`} blockers={store.departmentDeleteBlockers(d.id)} onEdit={() => setDep({ ...d })} onDelete={reason => run(() => store.deleteDepartment(d.id, reason), 'Department deleted.')} /> }]} />
       </Section>}
       {tab === 'locations' && <Section title="Locations" compact right={<button className="btn sm primary" onClick={() => setLoc({ id: `L-${Date.now().toString(36).toUpperCase()}`, code: '', name: '' })}>Add Location</button>}>
-        <DataTable rows={db.locations} onRowClick={l => setLoc({ ...l })} columns={[{ key: 'code', header: 'Code' }, { key: 'name', header: 'Location' }, { key: 'address', header: 'Address' }, { key: 'count', header: 'Assets', num: true, render: l => db.assets.filter(a => a.locationId === l.id).length }]} />
+        <DataTable rows={db.locations} onRowClick={l => setLoc({ ...l })} columns={[{ key: 'code', header: 'Code' }, { key: 'name', header: 'Location' }, { key: 'address', header: 'Address' }, { key: 'count', header: 'Assets', num: true, render: l => db.assets.filter(a => a.locationId === l.id).length },
+          { key: 'actions', header: 'Actions', render: l => <RowActions label={`location ${l.name}`} blockers={store.locationDeleteBlockers(l.id)} onEdit={() => setLoc({ ...l })} onDelete={reason => run(() => store.deleteLocation(l.id, reason), 'Location deleted.')} /> }]} />
       </Section>}
       {tab === 'drive' && (
         <Section title="Google Drive — attachment storage">
