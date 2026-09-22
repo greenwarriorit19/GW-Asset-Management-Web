@@ -176,7 +176,7 @@ export function UsersPage() {
               onClick={() => { const reason = prompt(`Delete user ${edit.name}? Enter a reason:`); if (reason) { const ok = run(() => store.deleteUser(edit.id, reason), 'User deleted.'); if (ok !== undefined) setEdit(null); } }}>
               {blockers.length ? 'Delete (has history — deactivate instead)' : 'Delete User'}
             </button>); })()}
-          <button className="btn ghost" onClick={() => { setEdit(null); setLoginMsg(null); setPassword(''); }}>{loginMsg && isNewUser ? 'Close' : 'Cancel'}</button><button className="btn primary" disabled={loginBusy} onClick={saveUser}>{loginBusy ? 'Creating login…' : isNewUser && live ? 'Save & Create Login' : 'Save'}</button></>}>
+          <button className="btn ghost" onClick={() => { setEdit(null); setLoginMsg(null); setPassword(''); }}>{loginMsg && isNewUser ? 'Close' : 'Cancel'}</button><button className="btn primary" disabled={loginBusy || (live && isNewUser && password.length < 8) || !edit.name.trim() || !edit.email.trim()} title={live && isNewUser && password.length < 8 ? 'Enter an initial password of at least 8 characters' : undefined} onClick={saveUser}>{loginBusy ? 'Creating login…' : isNewUser && live ? 'Save & Create Login' : 'Save'}</button></>}>
           <div className="form-grid cols-2">
             <Input label="Full Name" required value={edit.name} onChange={e => setEdit({ ...edit, name: e.target.value })} />
             <Input label="Email" type="email" required value={edit.email} onChange={e => setEdit({ ...edit, email: e.target.value })} />
@@ -184,7 +184,11 @@ export function UsersPage() {
             <Select label="Linked Employee" value={edit.employeeId ?? ''} onChange={e => { const em = store.employee(e.target.value); setEdit({ ...edit, employeeId: e.target.value || undefined, departmentId: em?.departmentId ?? edit.departmentId }); }} placeholder="None" options={db.employees.map(e => ({ value: e.id, label: `${e.name} (${e.employeeCode})` }))} />
             <Select label="Department (for Department Head scope)" value={edit.departmentId ?? ''} onChange={e => setEdit({ ...edit, departmentId: e.target.value || undefined })} placeholder="None" options={db.departments.map(d => ({ value: d.id, label: d.name }))} hint="Create, edit or delete departments under Master Data → Departments" />
             <label className="checkbox field"><input type="checkbox" checked={edit.active} onChange={e => setEdit({ ...edit, active: e.target.checked })} /> Active</label>
-            {live && isNewUser && <Input label="Initial password" type="password" required autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} hint="At least 8 characters. Share it with the person; they can change it with “Forgot password” on the sign-in screen." />}
+            {live && isNewUser && <div className={`field ${password.length > 0 && password.length < 8 ? 'invalid' : ''}`}>
+              <label>Initial password<span className="req">*</span></label>
+              <input type="password" required minLength={8} autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} style={password.length > 0 && password.length < 8 ? { borderColor: 'var(--danger)' } : undefined} />
+              <span className="hint" style={password.length > 0 && password.length < 8 ? { color: 'var(--danger)' } : undefined}>{password.length < 8 ? `${password.length}/8 characters — at least 8 required` : `${password.length} characters ✓`}. Share it with the person; they can change it with “Forgot password” on the sign-in screen.</span>
+            </div>}
             {live && !isNewUser && (
               <div className="field span-full">
                 <label>Login (Supabase Auth)</label>
