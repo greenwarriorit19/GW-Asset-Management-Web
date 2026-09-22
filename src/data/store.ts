@@ -365,8 +365,9 @@ export class Store {
     if (dup.length) throw new BusinessRuleError(dup.join(' '));
     const id = this.nextAssetId(input.categoryId);
     const cat = this.category(input.categoryId)!;
+    const { reason: _reason, ...fields } = input;          // `reason` belongs to the transaction / audit entry, not to the asset row
     const asset: Asset = {
-      ...input, id, barcode: input.barcode || id, status: 'Available', registeredBy: this.currentUser.id, registeredAt: nowIso(),
+      ...fields, id, barcode: input.barcode || id, status: 'Available', registeredBy: this.currentUser.id, registeredAt: nowIso(),
       lastVerificationDate: input.lastVerificationDate || today(),
       nextVerificationDate: input.nextVerificationDate || addMonths(today(), cat.verificationIntervalMonths),
     };
@@ -593,7 +594,8 @@ export class Store {
     if (!r || r.inspected) throw new BusinessRuleError('Return already inspected or not found.');
     const a = this.asset(r.assetId)!;
     const after: AssetStatus = input.inspectionOutcome === 'Acceptable' ? 'Available' : input.inspectionOutcome === 'Faulty' ? 'Under Repair' : 'Damaged';
-    this.db.returns = this.db.returns.map(x => x.id === id ? { ...x, inspected: true, inspectedByUserId: this.currentUser.id, inspectionDate: today(), ...input, status: 'Completed' } : x);
+    const { reason: _r, ...inspection } = input;                         // reason → audit entry
+    this.db.returns = this.db.returns.map(x => x.id === id ? { ...x, inspected: true, inspectedByUserId: this.currentUser.id, inspectionDate: today(), ...inspection, status: 'Completed' } : x);
     this.addTransaction({ type: 'INSPECTION', assetId: a.id, reference: id, statusBefore: a.status, statusAfter: after, conditionBefore: a.condition, conditionAfter: input.inspectionCondition, reason: `Inspection outcome: ${input.inspectionOutcome}. ${input.reason}`, remarks: input.inspectionNotes });
     this.setAsset(a.id, { status: after, condition: input.inspectionCondition, departmentId: 'D-ADM', locationId: after === 'Under Repair' ? 'L-WS' : a.locationId });
     if (input.inspectionOutcome === 'Damaged') {
@@ -719,7 +721,8 @@ export class Store {
       if (!r.custodianBeforeRepair) throw new BusinessRuleError('Asset had no custodian before repair; choose Available or Retired.');
       after = 'Assigned'; custodian = r.custodianBeforeRepair;
     } else if (input.outcome === 'Retired') { after = 'Retired'; }
-    this.db.repairs = this.db.repairs.map(x => x.id === id ? { ...x, ...input, inspectedByUserId: this.currentUser.id, status: 'Completed' } : x);
+    const { reason: _r, conditionAfter: _c, ...repairFields } = input;   // reason → audit, conditionAfter → the asset
+    this.db.repairs = this.db.repairs.map(x => x.id === id ? { ...x, ...repairFields, inspectedByUserId: this.currentUser.id, status: 'Completed' } : x);
     this.addTransaction({ type: 'REPAIR_COMPLETED', assetId: a.id, reference: id, toEmployeeId: custodian, statusBefore: a.status, statusAfter: after, conditionBefore: a.condition, conditionAfter: input.conditionAfter, reason: input.reason, remarks: `${input.workDone}. Cost ₹${input.actualCost}` });
     this.setAsset(a.id, { status: after, custodianEmployeeId: custodian, condition: input.conditionAfter, maintenanceNotes: `${a.maintenanceNotes ? a.maintenanceNotes + '\n' : ''}${input.completionDate}: ${input.workDone} (₹${input.actualCost}, ${r.vendor})` });
     if (after === 'Retired') this.startRetirement({ assetId: a.id, retirementReason: `Repair ${id} outcome: not economical to repair`, technicalRecommendation: input.inspectionNotes, reason: input.reason }, false, true);
@@ -755,7 +758,8 @@ export class Store {
     this.requireReason(input.reason);
     const inc = this.db.incidents.find(x => x.id === id);
     if (!inc || inc.status === 'Closed') throw new BusinessRuleError('Incident not found or already closed.');
-    this.db.incidents = this.db.incidents.map(x => x.id === id ? { ...x, ...input, investigatedByUserId: this.currentUser.id, status: 'Awaiting Approval' } : x);
+    const { reason: _r, ...incidentFields } = input;                     // reason → audit entry
+    this.db.incidents = this.db.incidents.map(x => x.id === id ? { ...x, ...incidentFields, investigatedByUserId: this.currentUser.id, status: 'Awaiting Approval' } : x);
     this.audit('INCIDENT_INVESTIGATED', 'Incident', id, input.reason, `Resolution proposed: ${input.resolution}`);
     this.commit();
   }
@@ -845,7 +849,8 @@ export class Store {
     const d = this.db.disposals.find(x => x.id === id);
     if (!d || d.status !== 'Retired') throw new BusinessRuleError('Asset must be Retired before disposal can be recorded.');
     if (!input.disposalProof) throw new BusinessRuleError('Rule 10: supporting disposal document is required.');
-    this.db.disposals = this.db.disposals.map(x => x.id === id ? { ...x, ...input, status: 'Disposal Pending' } : x);
+    const { reason: _r, ...disposalFields } = input;                     // reason → audit entry
+    this.db.disposals = this.db.disposals.map(x => x.id === id ? { ...x, ...disposalFields, status: 'Disposal Pending' } : x);
     this.attach(d.assetId, 'Disposal', id, 'Proof of Disposal', input.disposalProof);
     this.attach(d.assetId, 'Disposal', id, 'Data Erasure Certificate', input.dataErasureCertificate);
     this.addApproval('Disposal', id, 'super_admin');

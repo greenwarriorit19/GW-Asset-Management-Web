@@ -128,3 +128,58 @@ describe('supabase/reset.sql', () => {
     expect(r.rows[0].n).toBe(5);
   }, 60_000);
 });
+
+describe('records created by the app fit the database schema', () => {
+  it('a full lifecycle through the store inserts into PostgreSQL with no unknown columns', async () => {
+    const { Store } = await import('../src/data/store');
+    const { ORDER, TABLES, KEY, toRow } = await import('../src/data/supabase');
+    localStorage.clear();
+    const s = new Store();                       // local mode (tests pin VITE_SUPABASE_* to empty)
+    s.switchUser('U-SA');
+    const { loadSampleData } = await import('../src/data/sample');
+    loadSampleData(s);                           // employees, assets, assignments, return, repair, incident, retirement
+    const db = s.getSnapshot();
+    // …and take the remaining steps so every table is populated
+    const ret = db.returns.find(r => !r.inspected)!;
+    s.inspectReturn(ret.id, { inspectionCondition: 'Good', inspectionOutcome: 'Acceptable', inspectionNotes: 'ok', reason: 'Inspection done' });
+    const rp = s.getSnapshot().repairs[0];
+    s.approveRepair(rp.id, true, 'Approved');
+    s.completeRepair(rp.id, { actualCost: 1800, completionDate: '2026-09-22', workDone: 'Replaced screen', inspectionNotes: 'ok', outcome: 'Available', conditionAfter: 'Good', reason: 'Repair completed' });
+    const inc = s.getSnapshot().incidents[0];
+    s.investigateIncident(inc.id, { investigationNotes: 'Accidental', responsibility: 'None', recoveryAction: 'None', resolution: 'Repair', reason: 'Reviewed' });
+    s.approveIncident(inc.id, true, 'Proceed');
+    const dsp = s.getSnapshot().disposals[0];
+    s.approveRetirement(dsp.id, true, 'Approved');
+    s.recordDisposal(dsp.id, { dataErased: true, disposalMethod: 'Scrap', disposalDate: '2026-09-22', disposalValue: 500, disposalVendor: 'Scrap Traders', disposalProof: { name: 'r.pdf', type: 'application/pdf', size: 10 }, reason: 'Sold as scrap' });
+    s.approveDisposal(dsp.id, true, 'Authorized');
+    const asset = s.getSnapshot().assets.find(a => a.status === 'Available')!;
+    s.requestTransfer({ assetId: asset.id, toDepartmentId: 'D-OPS', toLocationId: 'L-PM', reason: 'Moved to the depot', conditionAtTransfer: 'Good' });
+    const tr = s.getSnapshot().transfers[0];
+    s.approveTransfer(tr.id, true, 'Approved'); s.completeTransfer(tr.id, 'Handed over');
+    s.uploadDocument({ assetId: asset.id, entityType: 'Asset', entityId: asset.id, documentType: 'Invoice', attachment: { name: 'i.pdf', type: 'application/pdf', size: 20, driveId: 'x', url: 'https://drive/x' } });
+
+    const pg = new PGlite();
+    await pg.exec(`create schema if not exists auth; create or replace function auth.jwt() returns jsonb language sql stable as $$ select '{}'::jsonb $$;
+      do $$ begin create role authenticated; exception when duplicate_object then null; end $$; create publication supabase_realtime;`);
+    await pg.exec(readFileSync('supabase/schema.sql', 'utf8'));
+    await pg.exec(`alter table audit_logs disable trigger audit_logs_immutable; delete from audit_logs; alter table audit_logs enable trigger audit_logs_immutable;
+      delete from users; delete from asset_categories; delete from locations; delete from departments; delete from roles;`);
+
+    const final = s.getSnapshot();
+    let rows = 0;
+    for (const c of ORDER) {
+      const key = KEY[c] ?? 'id';
+      for (const obj of final[c] as unknown as Record<string, unknown>[]) {
+        const row = toRow(obj);
+        const cols = Object.keys(row);
+        const sql = `insert into ${TABLES[c]} (${cols.join(',')}) values (${cols.map((_, i) => `$${i + 1}`).join(',')}) on conflict do nothing`;
+        const values = cols.map(k => (row[k] !== null && typeof row[k] === 'object' && !Array.isArray(row[k])) ? JSON.stringify(row[k]) : row[k]);
+        await pg.query(sql, values).catch((e: Error) => { throw new Error(`${TABLES[c]} ${String(obj[key])}: ${e.message}`); });
+        rows++;
+      }
+    }
+    expect(rows).toBeGreaterThan(60);
+    const assets = await pg.query<{ n: number }>(`select count(*)::int as n from assets`);
+    expect(assets.rows[0].n).toBe(final.assets.length);
+  }, 120_000);
+});
