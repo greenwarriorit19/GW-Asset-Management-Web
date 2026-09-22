@@ -482,7 +482,8 @@ describe('Bulk import (Excel)', () => {
       { ...full, 'Asset Name': 'Phone B', Category: 'Mobile Phone', 'Serial Number': 'r58x3a1b2c01', 'IMEI Number': '124', 'SIM Number': '457' },      // serial exists in register
       { ...full, 'Asset Name': 'Phone C', Category: 'XYZ', 'IMEI Number': '125', 'SIM Number': '458' },                                              // bad category + dup serial within file
       { ...full, 'Asset Name': '', Manufacturer: '', 'Serial Number': 'BULK-9', 'IMEI Number': '', 'SIM Number': '459', 'Purchase Date': new Date(2026, 8, 5), Accessories: '' },
-      { ...full, 'Asset Name': 'Laptop', Category: 'LAP', 'Serial Number': 'BULK-L', 'IMEI Number': '', 'SIM Number': '' },                          // IMEI/SIM not needed for laptops
+      { ...full, 'Asset Name': 'Laptop', Category: 'LAP', 'Serial Number': 'BULK-L', 'IMEI Number': '999', 'SIM Number': '' },                       // IMEI always required; SIM not for laptops
+      { ...full, 'Asset Name': 'Laptop2', Category: 'LAP', 'Serial Number': 'BULK-M', 'IMEI Number': '', 'SIM Number': '' },
     ];
     const v = validateAssets(rows, db);
     expect(v[0].errors).toEqual([]);
@@ -491,6 +492,7 @@ describe('Bulk import (Excel)', () => {
     expect(v[2].errors.join()).toMatch(/Category "XYZ" not found/); expect(v[2].errors.join()).toMatch(/Serial BULK-1 already exists/);
     expect(v[3].errors.join()).toMatch(/Asset Name is required/); expect(v[3].errors.join()).toMatch(/IMEI Number is required/); expect(v[3].errors.join()).toMatch(/Accessories is required/); expect(v[3].data.purchaseDate).toBe('2026-09-05');
     expect(v[4].errors).toEqual([]);
+    expect(v[5].errors).toEqual(['IMEI Number is required']);
     const e = validateEmployees([{ 'Employee Name': 'New Person', Designation: 'Driver', Department: 'OPS', 'Work Location': 'PM Zone Depot', Active: 'no' }, { 'Employee ID': 'GW-EMP-0001', 'Employee Name': 'Dup', Designation: 'x', Department: 'OPS', 'Work Location': 'PM' }], db);
     expect(e[0].errors).toEqual([]); expect(e[0].data).toMatchObject({ departmentId: 'D-OPS', workLocationId: 'L-PM', active: false });
     expect(e[1].errors.join()).toMatch(/already exists/);

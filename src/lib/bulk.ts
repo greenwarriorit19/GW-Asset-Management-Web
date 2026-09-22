@@ -4,14 +4,14 @@ import { CONDITIONS, OWNERSHIP_TYPES } from '../data/types';
 
 export const ASSET_COLUMNS = [
   ['Asset Name', 'REQUIRED'], ['Category', 'REQUIRED — code or name, e.g. MOB or Mobile Phone'], ['Manufacturer', 'REQUIRED'], ['Model', 'REQUIRED'],
-  ['Serial Number', 'REQUIRED — must be unique'], ['IMEI Number', 'REQUIRED for MOB / TAB / GPS / SIM categories; unique'], ['SIM Number', 'REQUIRED for MOB / TAB / GPS / SIM categories; unique'],
+  ['Serial Number', 'REQUIRED — must be unique'], ['IMEI Number', 'REQUIRED — must be unique'], ['SIM Number', 'REQUIRED for MOB / TAB / GPS / SIM categories; unique'],
   ['Ownership Type', `optional — one of: ${OWNERSHIP_TYPES.join(', ')} (default Company Owned)`], ['Invoice Number', 'optional'],
   ['Purchase Date', 'REQUIRED — date (YYYY-MM-DD or Excel date)'], ['Purchase Cost', 'REQUIRED — number in ₹'], ['Warranty Start Date', 'REQUIRED — date'], ['Warranty Expiry Date', 'REQUIRED — date'],
   ['Condition', `REQUIRED — one of: ${CONDITIONS.join(', ')}`], ['Department', 'REQUIRED — code or name'], ['Assigned Location', 'REQUIRED — code or name'],
   ['Specification', 'REQUIRED'], ['Accessories', 'REQUIRED — comma-separated, e.g. Charger - Moto 33W, Back case x2'], ['Maintenance Notes', 'optional'], ['Remarks', 'optional'],
 ] as const;
 
-/** Categories whose assets carry an IMEI / SIM; for these the columns are mandatory. */
+/** Categories whose assets carry a SIM; for these the SIM column is mandatory. IMEI is mandatory for every row. */
 export const IMEI_SIM_CATEGORIES = ['MOB', 'TAB', 'GPS', 'SIM'];
 
 export const EMPLOYEE_COLUMNS = [
@@ -71,7 +71,8 @@ export function validateAssets(rows: Record<string, unknown>[], db: Database): P
     const loc = lookup(db.locations, findCol(raw, 'Assigned Location') ?? findCol(raw, 'Location')); if (!loc) e.push(`Location "${g('Assigned Location') || g('Location')}" not found`);
     for (const f of ['Asset Name', 'Manufacturer', 'Model', 'Serial Number', 'Purchase Date', 'Purchase Cost', 'Warranty Start Date', 'Warranty Expiry Date', 'Condition', 'Specification', 'Accessories']) if (!g(f)) e.push(`${f} is required`);
     const catCode = db.categories.find(c => c.id === cat)?.code ?? '';
-    if (IMEI_SIM_CATEGORIES.includes(catCode)) { if (!g('IMEI Number')) e.push('IMEI Number is required for this category'); if (!g('SIM Number')) e.push('SIM Number is required for this category'); }
+    if (!g('IMEI Number')) e.push('IMEI Number is required');
+    if (IMEI_SIM_CATEGORIES.includes(catCode) && !g('SIM Number')) e.push('SIM Number is required for this category');
     const sn = g('Serial Number').toUpperCase(), imei = g('IMEI Number').toUpperCase(), sim = g('SIM Number').toUpperCase();
     if (sn && (serials.has(sn) || seenS.has(sn))) e.push(`Serial ${sn} already exists`); seenS.add(sn);
     if (imei && (imeis.has(imei) || seenI.has(imei))) e.push(`IMEI ${imei} already exists`); if (imei) seenI.add(imei);
