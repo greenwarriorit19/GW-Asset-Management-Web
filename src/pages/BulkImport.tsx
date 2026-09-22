@@ -82,12 +82,12 @@ export function BulkImport() {
           <div className="table-wrap"><table className="data">
             {kind === 'assets' ? (
               <>
-                <thead><tr><th>Row</th><th>Status</th><th>Asset</th><th>Category</th><th>Serial / IMEI / SIM</th><th>Supplier / Invoice</th><th>Cost</th><th>Department / Location</th><th>Condition</th><th>Errors</th></tr></thead>
+                <thead><tr><th>Row</th><th>Status</th><th>Asset</th><th>Category</th><th>Serial / IMEI / SIM</th><th>Invoice</th><th>Cost</th><th>Department / Location</th><th>Condition</th><th>Errors</th></tr></thead>
                 <tbody>{(rows as Parsed<AssetRow>[]).map(r => (
                   <tr key={r.line} style={r.errors.length ? { background: 'var(--danger-bg)' } : undefined}>
                     <td>{r.line}</td><td><Status value={r.errors.length ? 'Error' : 'Valid'} /></td>
                     <td>{r.data.name}<div className="muted small">{r.data.manufacturer} {r.data.model}</div></td><td>{store.catName(r.data.categoryId) === '—' ? <span className="muted">?</span> : store.catName(r.data.categoryId)}</td>
-                    <td className="mono">{[r.data.serialNumber, r.data.imei, r.data.sim].filter(Boolean).join(' / ')}</td><td>{r.data.supplierName}<div className="muted small">{r.data.invoiceNumber}</div></td>
+                    <td className="mono">{[r.data.serialNumber, r.data.imei, r.data.sim].filter(Boolean).join(' / ')}</td><td>{r.data.invoiceNumber || <span className="muted">—</span>}</td>
                     <td className="num">{fmtMoney(r.data.purchaseCost)}</td><td>{store.deptName(r.data.departmentId)} / {store.locName(r.data.locationId)}</td><td>{r.data.condition}</td>
                     <td style={{ color: 'var(--danger)' }}>{r.errors.join('; ')}</td>
                   </tr>))}</tbody>

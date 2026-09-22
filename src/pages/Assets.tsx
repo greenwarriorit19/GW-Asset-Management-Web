@@ -123,11 +123,9 @@ export function AssetDetail() {
             </Section>
             <Section title="Procurement & Warranty">
               <dl className="kv">
-                <dt>Supplier</dt><dd>{a.supplierName}</dd>
                 <dt>Invoice / PO</dt><dd>{a.invoiceNumber} / {a.poNumber}</dd>
                 <dt>Purchase</dt><dd>{fmtDate(a.purchaseDate)} · {fmtMoney(a.purchaseCost)}</dd>
                 <dt>Warranty</dt><dd>{fmtDate(a.warrantyStart)} – {fmtDate(a.warrantyExpiry)}</dd>
-                <dt>Funding / Project</dt><dd>{a.funding || '—'}</dd>
                 <dt>Registered</dt><dd>{fmtDateTime(a.registeredAt)} by {store.userName(a.registeredBy)} {a.registrationApprovedBy ? `· approved by ${store.userName(a.registrationApprovedBy)}` : <Status value="Pending Approval" />}</dd>
               </dl>
             </Section>
@@ -253,12 +251,10 @@ function AssetForm({ asset, onSaved, onClose }: { asset?: Asset; onSaved: (id: s
       </Section>
       <Section title="Procurement">
         <div className="form-grid">
-          <Input label="Supplier Name" required value={f.supplierName} onChange={e => set('supplierName', e.target.value)} />
           <Input label="Invoice Number" required value={f.invoiceNumber} onChange={e => set('invoiceNumber', e.target.value)} />
           <Input label="Purchase Order Number" value={f.poNumber} onChange={e => set('poNumber', e.target.value)} />
           <Input label="Purchase Date" type="date" required value={f.purchaseDate} onChange={e => set('purchaseDate', e.target.value)} />
           <Input label="Purchase Cost (₹)" type="number" min={0} required value={f.purchaseCost} onChange={e => set('purchaseCost', e.target.value)} />
-          <Input label="Funding / Project" value={f.funding ?? ''} onChange={e => set('funding', e.target.value)} />
           <Input label="Warranty Start Date" type="date" value={f.warrantyStart ?? ''} onChange={e => set('warrantyStart', e.target.value)} />
           <Input label="Warranty Expiry Date" type="date" value={f.warrantyExpiry ?? ''} onChange={e => set('warrantyExpiry', e.target.value)} />
         </div>

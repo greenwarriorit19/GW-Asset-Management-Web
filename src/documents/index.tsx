@@ -83,8 +83,8 @@ export function RegistrationDoc({ asset }: { asset: Asset }) {
       ]} />
       <h4>Procurement</h4>
       <Fields rows={[
-        ['Supplier Name', a.supplierName], ['Invoice Number', a.invoiceNumber], ['Purchase Order Number', a.poNumber], ['Purchase Date', fmtDate(a.purchaseDate)],
-        ['Purchase Cost', fmtMoney(a.purchaseCost)], ['Funding / Project', a.funding], ['Warranty Start', fmtDate(a.warrantyStart)], ['Warranty Expiry', fmtDate(a.warrantyExpiry)],
+        ['Invoice Number', a.invoiceNumber], ['Purchase Order Number', a.poNumber], ['Purchase Date', fmtDate(a.purchaseDate)],
+        ['Purchase Cost', fmtMoney(a.purchaseCost)], ['Warranty Start', fmtDate(a.warrantyStart)], ['Warranty Expiry', fmtDate(a.warrantyExpiry)],
       ]} />
       <h4>Allocation & Status</h4>
       <Fields rows={[
@@ -260,7 +260,7 @@ export function DisposalDoc({ disposal }: { disposal: Disposal }) {
       <h4>Asset for Retirement / Disposal</h4>
       <AssetItemsTable rows={[{ asset: a, assetId: a.id, condition: a.condition, quantity: 1, accessories: a.accessories, remarks: d.retirementReason }]} />
       <h4>Asset Value</h4>
-      <Fields rows={[['Purchase Date', fmtDate(a.purchaseDate)], ['Purchase Cost', fmtMoney(a.purchaseCost)], ['Supplier', a.supplierName], ['Invoice No', a.invoiceNumber]]} />
+      <Fields rows={[['Purchase Date', fmtDate(a.purchaseDate)], ['Purchase Cost', fmtMoney(a.purchaseCost)], ['Invoice No', a.invoiceNumber]]} />
       <h4>Section A — Retirement Approval</h4>
       <Fields rows={[['Requested By', personWithTitle(store, d.retirementRequestedByUserId)], ['Requested On', fmtDateTime(d.retirementRequestedAt)], ['Retirement Approved By', d.retirementApprovedByUserId ? personWithTitle(store, d.retirementApprovedByUserId) : d.retirementApproval], ['Approved On', d.retirementApprovedAt ? fmtDateTime(d.retirementApprovedAt) : '']]} />
       <Fields cols={1} rows={[['Reason for Retirement', d.retirementReason], ['Technical Recommendation', d.technicalRecommendation]]} />
