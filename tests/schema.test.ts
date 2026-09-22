@@ -8,63 +8,107 @@ let db: PGlite;
 
 beforeAll(async () => {
   db = new PGlite();
-  // Supabase provides auth.uid(); emulate it so the RLS helper functions compile.
-  await db.exec(`create schema if not exists auth; create or replace function auth.uid() returns uuid language sql stable as $$ select null::uuid $$;`);
-  // PGlite has no pgcrypto; gen_random_uuid() is built into PostgreSQL 13+, so the extension line is not needed here.
-  const sql = readFileSync('supabase/schema.sql', 'utf8').replace('create extension if not exists pgcrypto;', '');
-  await db.exec(sql);
+  // Supabase-provided pieces emulated: auth schema, the `authenticated` role and the realtime publication.
+  await db.exec(`
+    create schema if not exists auth;
+    create or replace function auth.jwt() returns jsonb language sql stable as $$ select '{"email":"greenwarriorit19@gmail.com"}'::jsonb $$;
+    do $$ begin create role authenticated; exception when duplicate_object then null; end $$;
+    create publication supabase_realtime;
+  `);
+  await db.exec(readFileSync('supabase/schema.sql', 'utf8'));
 }, 60_000);
 
 describe('supabase/schema.sql', () => {
-  it('creates all 15 application tables', async () => {
+  it('creates every application table', async () => {
     const r = await db.query<{ table_name: string }>(`select table_name from information_schema.tables where table_schema='public' and table_type='BASE TABLE' order by 1`);
     const names = r.rows.map(x => x.table_name);
-    for (const t of ['roles', 'departments', 'locations', 'asset_categories', 'employees', 'users', 'assets', 'asset_transactions', 'asset_assignments', 'asset_assignment_items', 'asset_returns', 'asset_inspections', 'asset_transfers', 'asset_repairs', 'asset_incidents', 'asset_disposals', 'asset_approvals', 'asset_documents', 'audit_logs', 'reference_counters']) {
+    for (const t of ['roles', 'departments', 'locations', 'asset_categories', 'employees', 'users', 'assets', 'asset_transactions', 'audit_logs', 'handovers', 'asset_returns', 'asset_transfers', 'asset_repairs', 'asset_incidents', 'asset_disposals', 'asset_approvals', 'asset_documents']) {
       expect(names, `missing table ${t}`).toContain(t);
     }
-    expect(names).not.toContain('asset_verifications');
   });
 
-  it('seeds the five built-in roles with permissions', async () => {
-    const r = await db.query<{ code: string; n: number }>(`select code, cardinality(permissions) as n from roles order by code`);
-    expect(r.rows.map(x => x.code).sort()).toEqual(['asset_admin', 'auditor', 'dept_head', 'employee', 'super_admin']);
-    expect(r.rows.find(x => x.code === 'super_admin')!.n).toBe(31);
+  it('is idempotent — running the script twice is harmless', async () => {
+    await db.exec(readFileSync('supabase/schema.sql', 'utf8'));
+    const r = await db.query<{ n: number }>(`select count(*)::int as n from roles`);
+    expect(r.rows[0].n).toBe(5);
   });
 
-  it('generates Asset IDs and document references in the required formats', async () => {
-    await db.exec(`insert into asset_categories (id, code, name) values ('00000000-0000-0000-0000-000000000001', 'MOB', 'Mobile Phone')`);
-    const a = await db.query<{ id: string }>(`select next_asset_id('00000000-0000-0000-0000-000000000001') as id`);
-    const b = await db.query<{ id: string }>(`select next_asset_id('00000000-0000-0000-0000-000000000001') as id`);
-    expect(a.rows[0].id).toBe('GW-AST-MOB-0001'); expect(b.rows[0].id).toBe('GW-AST-MOB-0002');
-    const h = await db.query<{ r: string }>(`select next_reference('HO') as r`);
-    const h2 = await db.query<{ r: string }>(`select next_reference('HO') as r`);
-    expect(h.rows[0].r).toMatch(/^GW-HO-\d{6}-0001$/); expect(h2.rows[0].r).toMatch(/^GW-HO-\d{6}-0002$/);
+  it('seeds roles, master data and the Super Admin login', async () => {
+    const roles = await db.query<{ code: string; n: number }>(`select code, cardinality(permissions) as n from roles order by code`);
+    expect(roles.rows.map(x => x.code).sort()).toEqual(['asset_admin', 'auditor', 'dept_head', 'employee', 'super_admin']);
+    expect(roles.rows.find(x => x.code === 'super_admin')!.n).toBe(31);
+    const u = await db.query<{ id: string; role: string }>(`select id, role from users`);
+    expect(u.rows).toEqual([{ id: 'U-SA', role: 'super_admin' }]);
+    const c = await db.query<{ n: number }>(`select count(*)::int as n from asset_categories`);
+    expect(c.rows[0].n).toBe(7);
+    const me = await db.query<{ id: string }>(`select app_user_id() as id`);
+    expect(me.rows[0].id).toBe('U-SA');
   });
 
-  it('enforces unique serial / IMEI (Rule 2) and append-only history (Rule 6)', async () => {
-    await db.exec(`insert into users (id, name, email, role) values ('00000000-0000-0000-0000-0000000000aa', 'Admin', 'a@gw.in', 'super_admin')`);
-    await db.exec(`insert into assets (id, category_id, name, serial_number, imei, registered_by) values ('GW-AST-MOB-0001', '00000000-0000-0000-0000-000000000001', 'Phone', 'SN-1', '111', '00000000-0000-0000-0000-0000000000aa')`);
-    await expect(db.exec(`insert into assets (id, category_id, name, serial_number, registered_by) values ('GW-AST-MOB-0002', '00000000-0000-0000-0000-000000000001', 'Phone', 'sn-1', '00000000-0000-0000-0000-0000000000aa')`)).rejects.toThrow(/assets_serial_uq/);
-    await db.exec(`insert into asset_transactions (type, asset_id, status_before, status_after, performed_by, performed_by_name, reason) values ('REGISTRATION', 'GW-AST-MOB-0001', 'Available', 'Available', '00000000-0000-0000-0000-0000000000aa', 'Admin', 'New asset')`);
+  it('enforces unique serial / IMEI (Rule 2), Asset ID format (Rule 1) and append-only history (Rule 6)', async () => {
+    await db.exec(`insert into assets (id, category_id, name, serial_number, imei, registered_by, registered_at) values ('GW-AST-MOB-0001', 'C-MOB', 'Phone', 'SN-1', '111', 'U-SA', '2026-09-22T00:00:00Z')`);
+    await expect(db.exec(`insert into assets (id, category_id, name, serial_number, registered_at) values ('GW-AST-MOB-0002', 'C-MOB', 'Phone', 'sn-1', 'x')`)).rejects.toThrow(/assets_serial_uq/);
+    await expect(db.exec(`insert into assets (id, category_id, name, serial_number, registered_at) values ('BAD-ID', 'C-MOB', 'Phone', 'SN-9', 'x')`)).rejects.toThrow(/check/);
+    await db.exec(`insert into asset_transactions (id, type, asset_id, date, status_before, status_after, performed_by_user_id, performed_by_name, reason) values ('T-000001', 'REGISTRATION', 'GW-AST-MOB-0001', '2026-09-22T00:00:00Z', 'Available', 'Available', 'U-SA', 'Admin', 'New asset')`);
     await expect(db.exec(`update asset_transactions set reason = 'edited'`)).rejects.toThrow(/append-only/);
     await expect(db.exec(`delete from asset_transactions`)).rejects.toThrow(/append-only/);
+    await expect(db.exec(`delete from audit_logs`)).rejects.toThrow(/append-only/);
   });
 
-  it('only Available assets can be placed on a handover (Rule 4)', async () => {
-    await db.exec(`insert into departments (id, code, name) values ('00000000-0000-0000-0000-0000000000d1', 'OPS', 'Operations');
-      insert into locations (id, code, name) values ('00000000-0000-0000-0000-0000000000e1', 'HO', 'Head Office');
-      insert into employees (id, employee_code, name, department_id, work_location_id) values ('00000000-0000-0000-0000-0000000000e2', 'GW-EMP-0001', 'Arun', '00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000e1');
-      insert into asset_assignments (id, employee_id, issued_by) values ('GW-HO-202609-0001', '00000000-0000-0000-0000-0000000000e2', '00000000-0000-0000-0000-0000000000aa');`);
-    await db.exec(`insert into asset_assignment_items (assignment_id, asset_id, condition) values ('GW-HO-202609-0001', 'GW-AST-MOB-0001', 'New')`);
-    const st = await db.query<{ status: string }>(`select status from assets where id = 'GW-AST-MOB-0001'`);
-    expect(st.rows[0].status).toBe('Reserved');
-    await expect(db.exec(`insert into asset_assignment_items (assignment_id, asset_id, condition) values ('GW-HO-202609-0001', 'GW-AST-MOB-0001', 'New')`)).rejects.toThrow(/Rule 4/);
+  it('stores workflow records with JSON items / attachments and keeps updated_at current', async () => {
+    await db.exec(`insert into employees (id, employee_code, name, department_id, work_location_id) values ('E-1', 'GW-EMP-0001', 'Arun', 'D-OPS', 'L-PM')`);
+    await db.exec(`insert into handovers (id, date, employee_id, issued_by_user_id, items, status, created_by_user_id, created_at)
+      values ('GW-HO-202609-0001', '2026-09-22', 'E-1', 'U-SA', '[{"assetId":"GW-AST-MOB-0001","condition":"New","quantity":1,"accessories":"Charger","remarks":""}]', 'Awaiting Approval', 'U-SA', 'x')`);
+    const before = await db.query<{ updated_at: string }>(`select updated_at from handovers`);
+    await new Promise(r => setTimeout(r, 20));
+    await db.exec(`update handovers set status = 'Active'`);
+    const after = await db.query<{ updated_at: string; items: unknown }>(`select updated_at, items from handovers`);
+    expect(new Date(after.rows[0].updated_at).getTime()).toBeGreaterThan(new Date(before.rows[0].updated_at).getTime());
+    expect((after.rows[0].items as { assetId: string }[])[0].assetId).toBe('GW-AST-MOB-0001');
+  });
+
+  it('row level security is enabled on every table with a staff policy', async () => {
+    const r = await db.query<{ tablename: string; rowsecurity: boolean }>(`select tablename, rowsecurity from pg_tables where schemaname = 'public'`);
+    expect(r.rows.every(x => x.rowsecurity)).toBe(true);
+    const p = await db.query<{ n: number }>(`select count(*)::int as n from pg_policies where schemaname = 'public'`);
+    expect(p.rows[0].n).toBe(r.rows.length);
   });
 
   it('reporting views work', async () => {
     const m = await db.query<{ total_assets: number }>(`select total_assets from v_dashboard_metrics`);
     expect(Number(m.rows[0].total_assets)).toBe(1);
-    const reg = await db.query(`select * from v_asset_register`);
-    expect(reg.rows.length).toBe(1);
+    const reg = await db.query<{ category: string }>(`select category from v_asset_register`);
+    expect(reg.rows[0].category).toBe('Mobile Phone');
   });
+});
+
+describe('app model ↔ table round-trip', () => {
+  it('every record of the full demo dataset survives toRow → PostgreSQL → fromRow unchanged', async () => {
+    const { buildSeed } = await import('./fixtures/demo');
+    const { ORDER, TABLES, KEY, toRow, fromRow } = await import('../src/data/supabase');
+    const seed = buildSeed();
+    const fresh = new PGlite();
+    await fresh.exec(`create schema if not exists auth; create or replace function auth.jwt() returns jsonb language sql stable as $$ select '{}'::jsonb $$;
+      do $$ begin create role authenticated; exception when duplicate_object then null; end $$; create publication supabase_realtime;`);
+    await fresh.exec(readFileSync('supabase/schema.sql', 'utf8'));
+    // Start from an empty set of seeded rows so the fixture's own master data is what gets compared.
+    await fresh.exec(`alter table audit_logs disable trigger audit_logs_immutable; delete from audit_logs; alter table audit_logs enable trigger audit_logs_immutable; delete from users; delete from asset_categories; delete from locations; delete from departments; delete from roles;`);
+    let total = 0;
+    for (const c of ORDER) {
+      const key = KEY[c] ?? 'id';
+      const rows = (seed[c] as unknown as Record<string, unknown>[]);
+      for (const obj of rows) {
+        const row = toRow(obj);
+        const cols = Object.keys(row);
+        const sql = `insert into ${TABLES[c]} (${cols.join(",")}) values (${cols.map((_, i) => `$${i + 1}`).join(",")}) on conflict do nothing`;
+        await fresh.query(sql, cols.map(k => (row[k] !== null && typeof row[k] === 'object' && !Array.isArray(row[k])) ? JSON.stringify(row[k]) : row[k]));
+        const back = await fresh.query<Record<string, unknown>>(`select * from ${TABLES[c]} where ${key} = $1`, [obj[key]]);
+        const restored = fromRow(back.rows[0]);
+        const original = JSON.parse(JSON.stringify(obj));            // drop undefined keys like the wire format does
+        expect(restored, `${TABLES[c]} ${String(obj[key])}`).toEqual(original);
+        total++;
+      }
+    }
+    expect(total).toBeGreaterThan(80);
+  }, 120_000);
 });

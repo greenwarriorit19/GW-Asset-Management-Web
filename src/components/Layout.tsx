@@ -7,7 +7,7 @@ import type { Permission } from '../data/store';
 interface NavItem { to: string; label: string; perm?: Permission | Permission[]; badge?: number }
 
 export function Layout() {
-  const { db, store } = useStore();
+  const { db, store, session } = useStore();
   const [open, setOpen] = useState(false);
   const u = store.currentUser;
   const has = (p?: Permission | Permission[]) => !p || (Array.isArray(p) ? p.some(x => store.can(x)) : store.can(p));
@@ -51,9 +51,12 @@ export function Layout() {
         <div className="brand">Green Warrior<small>Asset Management System</small></div>
         <div className="spacer" />
         <div className="user">
+          {session.mode === 'supabase' && <span className={`sync sync-${session.sync.state}`} title={session.sync.message ?? ''}>{{ idle: 'Live', saving: 'Saving…', saved: 'Saved', error: 'Not saved' }[session.sync.state]}</span>}
           <span>{u.name} · {store.roleName(u.role)}</span>
-          <SearchSelect className="topbar-ss" value={u.id} onChange={e => store.switchUser(e.target.value)} title="Switch signed-in user"
-            options={db.users.filter(x => x.active).map(x => ({ value: x.id, label: `${x.name} — ${store.roleName(x.role)}` }))} />
+          {session.mode === 'local'
+            ? <SearchSelect className="topbar-ss" value={u.id} onChange={e => store.switchUser(e.target.value)} title="Switch signed-in user (browser-local mode)"
+                options={db.users.filter(x => x.active).map(x => ({ value: x.id, label: `${x.name} — ${store.roleName(x.role)}` }))} />
+            : <button className="btn sm signout" onClick={() => store.logout()}>Sign out</button>}
         </div>
       </header>
       <nav className={`sidebar ${open ? 'open' : ''}`} onClick={() => setOpen(false)}>
@@ -72,7 +75,7 @@ export function Layout() {
           );
         })}
       </nav>
-      <main className="main"><Outlet /></main>
+      <main className="main">{session.mode === 'supabase' && session.sync.state === 'error' && <div className="alert error">{session.sync.message} — the change is still on screen; check the connection and retry the action.</div>}<Outlet /></main>
     </div>
   );
 }

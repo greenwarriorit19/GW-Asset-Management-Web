@@ -1,443 +1,235 @@
 -- Green Warrior Solid Waste Management
--- Asset Management & Employee Handover System — PostgreSQL / Supabase schema
+-- Asset Management & Employee Handover System — Supabase / PostgreSQL schema (v2)
 --
--- Design rule: `assets` stores the CURRENT state; `asset_transactions` stores the complete,
--- permanent history. Transactions and audit logs are append-only (UPDATE/DELETE are blocked by
--- trigger). Reference numbers follow GW-AST-CAT-0001 / GW-HO-YYYYMM-0001 etc.
-
-create extension if not exists pgcrypto;
+-- One table per application entity, columns = snake_case of the app model, so the web app syncs
+-- rows directly. `assets` holds the CURRENT state; `asset_transactions` and `audit_logs` are the
+-- permanent history and are append-only (UPDATE/DELETE blocked by trigger).
+-- Run this once in the Supabase SQL editor. Safe to re-run: everything is "if not exists".
 
 -- ---------- Enumerations ----------
-create type asset_status as enum ('Available','Reserved','Assigned','Transferred','Returned','Under Inspection','Under Repair','Damaged','Lost','Retired','Disposed');
-create type asset_condition as enum ('New','Good','Fair','Damaged','Not Working');
-create type ownership_type as enum ('Company Owned','Leased','Rented','Project Funded','Client Provided');
-create type approval_state as enum ('Pending Approval','Approved','Rejected');
-create type transaction_type as enum ('REGISTRATION','HANDOVER','RETURN','INSPECTION','TRANSFER','REPAIR_SENT','REPAIR_COMPLETED','INCIDENT','RETIREMENT','DISPOSAL','STATUS_CHANGE','UPDATE');
+do $$ begin
+  create type asset_status as enum ('Available','Reserved','Assigned','Transferred','Returned','Under Inspection','Under Repair','Damaged','Lost','Retired','Disposed');
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create type asset_condition as enum ('New','Good','Fair','Damaged','Not Working');
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create type approval_state as enum ('Pending Approval','Approved','Rejected');
+exception when duplicate_object then null; end $$;
 
--- ---------- Master data ----------
-create table roles (
-  code text primary key check (code ~ '^[a-z0-9_]+$'),     -- built-in codes plus custom roles created in the app
+-- ---------- Roles & users ----------
+create table if not exists roles (
+  code text primary key check (code ~ '^[a-z0-9_]+$'),
   name text not null,
   description text,
   permissions text[] not null default '{}',
-  built_in boolean not null default false
-);
-insert into roles (code, name, description, built_in, permissions) values
-  ('super_admin','Super Admin','Complete system access', true, array['asset.register','asset.edit','asset.view_all','asset.view_department','asset.view_own','handover.create','handover.approve','handover.acknowledge','return.create','return.inspect','return.request','transfer.request','transfer.approve','transfer.complete','repair.create','repair.approve','repair.complete','incident.report','incident.investigate','incident.approve','disposal.request','disposal.approve_retirement','disposal.record','disposal.approve','reports.view','reports.export','audit.view','documents.upload','documents.view','users.manage','settings.manage']),
-  ('asset_admin','Asset Administrator','Registers, issues, transfers, receives, repairs, retires and disposes of assets', true, array['asset.register','asset.edit','asset.view_all','handover.create','return.create','return.inspect','transfer.request','transfer.complete','repair.create','repair.complete','incident.report','incident.investigate','disposal.request','disposal.record','reports.view','reports.export','audit.view','documents.upload','documents.view']),
-  ('dept_head','Department Head','Approves handovers, transfers, damage reports and returns', true, array['asset.view_department','handover.approve','transfer.approve','transfer.request','incident.approve','incident.investigate','repair.approve','reports.view','reports.export','documents.view','incident.report','return.request']),
-  ('employee','Employee','Views assigned assets, accepts handovers, reports damage or loss', true, array['asset.view_own','handover.acknowledge','incident.report','return.request','transfer.request','documents.view']),
-  ('auditor','Auditor / Management','Read-only access to dashboards, history, documents and reports', true, array['asset.view_all','reports.view','reports.export','audit.view','documents.view']);
-
-create table departments (
-  id uuid primary key default gen_random_uuid(),
-  code text not null unique,
-  name text not null,
-  head_employee_id uuid,
-  created_at timestamptz not null default now()
-);
-
-create table locations (
-  id uuid primary key default gen_random_uuid(),
-  code text not null unique,
-  name text not null,
-  address text,
-  created_at timestamptz not null default now()
-);
-
-create table asset_categories (
-  id uuid primary key default gen_random_uuid(),
-  code text not null unique check (code ~ '^[A-Z]{2,4}$'),   -- used in the Asset ID: GW-AST-<CODE>-0001
-  name text not null,
-  description text,
-  next_sequence int not null default 1
-);
-
-create table employees (
-  id uuid primary key default gen_random_uuid(),
-  employee_code text not null unique,                           -- GW-EMP-0001 (shown as Employee ID)
-  name text not null,
-  designation text,
-  department_id uuid references departments(id),
-  date_of_joining date,
-  work_location_id uuid references locations(id),
-  mobile text,
-  email text,
-  active boolean not null default true,
-  created_at timestamptz not null default now()
-);
-alter table departments add constraint departments_head_fk foreign key (head_employee_id) references employees(id);
-
-create table users (
-  id uuid primary key default gen_random_uuid(),               -- = auth.users.id when using Supabase Auth
-  name text not null,
-  email text not null unique,
-  role text not null references roles(code),
-  employee_id uuid references employees(id),
-  department_id uuid references departments(id),
-  active boolean not null default true,
-  created_at timestamptz not null default now()
-);
-
--- ---------- Assets (current state) ----------
-create table assets (
-  id text primary key check (id ~ '^GW-AST-[A-Z]{2,4}-[0-9]{4}$'),  -- Rule 1: permanent unique Asset ID
-  category_id uuid not null references asset_categories(id),
-  name text not null,
-  manufacturer text,
-  model text,
-  serial_number text not null,
-  imei text,
-  sim text,
-  barcode text,
-  ownership_type ownership_type not null default 'Company Owned',
-  supplier_name text,
-  invoice_number text,
-  po_number text,
-  purchase_date date,
-  purchase_cost numeric(12,2) not null default 0,
-  warranty_start date,
-  warranty_expiry date,
-  funding text,
-  status asset_status not null default 'Available',
-  condition asset_condition not null default 'New',
-  department_id uuid references departments(id),
-  location_id uuid references locations(id),
-  custodian_employee_id uuid references employees(id),
-  specification text,
-  accessories text,
-  maintenance_notes text,
-  remarks text,
-  registered_by uuid references users(id),
-  registered_at timestamptz not null default now(),
-  registration_approved_by uuid references users(id),
+  built_in boolean not null default false,
   updated_at timestamptz not null default now()
 );
--- Rule 2: serial / IMEI / SIM must be unique (case-insensitive, blanks ignored).
-create unique index assets_serial_uq on assets (upper(serial_number));
-create unique index assets_imei_uq on assets (upper(imei)) where imei is not null and imei <> '';
-create unique index assets_sim_uq on assets (upper(sim)) where sim is not null and sim <> '';
-create index assets_status_idx on assets (status);
-create index assets_custodian_idx on assets (custodian_employee_id);
-create index assets_department_idx on assets (department_id);
--- Rule 3: an asset cannot have a custodian unless it is Assigned/Transferred/Under Repair (repair keeps custody).
-alter table assets add constraint assets_custodian_status_chk
-  check (custodian_employee_id is null or status in ('Assigned','Transferred','Under Repair','Damaged','Lost'));
+insert into roles (code, name, description, built_in, permissions) values
+  ('super_admin','Super Admin','Complete system access; manages users, roles, categories and settings', true, array['asset.register','asset.edit','asset.view_all','asset.view_department','asset.view_own','handover.create','handover.approve','handover.acknowledge','return.create','return.inspect','return.request','transfer.request','transfer.approve','transfer.complete','repair.create','repair.approve','repair.complete','incident.report','incident.investigate','incident.approve','disposal.request','disposal.approve_retirement','disposal.record','disposal.approve','reports.view','reports.export','audit.view','documents.upload','documents.view','users.manage','settings.manage']),
+  ('asset_admin','Asset Administrator','Registers, issues, transfers, receives, repairs, retires and disposes of assets; generates reports', true, array['asset.register','asset.edit','asset.view_all','handover.create','return.create','return.inspect','transfer.request','transfer.complete','repair.create','repair.complete','incident.report','incident.investigate','disposal.request','disposal.record','reports.view','reports.export','audit.view','documents.upload','documents.view']),
+  ('dept_head','Department Head','Approves handovers, transfers, damage reports and returns; views department assets', true, array['asset.view_department','handover.approve','transfer.approve','transfer.request','incident.approve','incident.investigate','repair.approve','reports.view','reports.export','documents.view','incident.report','return.request']),
+  ('employee','Employee','Views assigned assets, accepts handovers, reports damage or loss, requests return or transfer', true, array['asset.view_own','handover.acknowledge','incident.report','return.request','transfer.request','documents.view']),
+  ('auditor','Auditor / Management','Read-only access to dashboards, history, documents and reports', true, array['asset.view_all','reports.view','reports.export','audit.view','documents.view'])
+on conflict (code) do nothing;
 
--- ---------- Transactions (permanent history) ----------
-create table asset_transactions (
-  id bigserial primary key,
-  type transaction_type not null,
-  asset_id text not null references assets(id),
-  occurred_at timestamptz not null default now(),
-  reference text,                                   -- GW-HO-…, GW-RT-…, etc.
-  from_employee_id uuid references employees(id),
-  to_employee_id uuid references employees(id),
-  from_department_id uuid references departments(id),
-  to_department_id uuid references departments(id),
-  from_location_id uuid references locations(id),
-  to_location_id uuid references locations(id),
-  status_before asset_status not null,
-  status_after asset_status not null,
-  condition_before asset_condition,
-  condition_after asset_condition,
-  performed_by uuid not null references users(id),
-  performed_by_name text not null,
-  reason text not null,
-  remarks text
+create table if not exists departments (
+  id text primary key, code text not null, name text not null, head_employee_id text,
+  updated_at timestamptz not null default now()
 );
-create index asset_transactions_asset_idx on asset_transactions (asset_id, occurred_at desc);
+create unique index if not exists departments_code_uq on departments (upper(code));
 
--- ---------- Handover / assignment ----------
-create table asset_assignments (            -- one row per handover document (GW-HO-YYYYMM-0001)
+create table if not exists locations (
+  id text primary key, code text not null, name text not null, address text,
+  updated_at timestamptz not null default now()
+);
+create unique index if not exists locations_code_uq on locations (upper(code));
+
+create table if not exists asset_categories (
+  id text primary key, code text not null check (code ~ '^[A-Z]{2,4}$'), name text not null, description text,
+  verification_interval_months int not null default 6,
+  updated_at timestamptz not null default now()
+);
+create unique index if not exists asset_categories_code_uq on asset_categories (code);
+
+create table if not exists employees (
+  id text primary key, employee_code text not null unique, name text not null, designation text,
+  department_id text references departments(id), date_of_joining text, work_location_id text references locations(id),
+  mobile text, email text, active boolean not null default true,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists users (
+  id text primary key, name text not null, email text not null, role text not null references roles(code),
+  employee_id text references employees(id), department_id text references departments(id), active boolean not null default true,
+  updated_at timestamptz not null default now()
+);
+create unique index if not exists users_email_uq on users (lower(email));
+
+-- ---------- Assets (current state) ----------
+create table if not exists assets (
+  id text primary key check (id ~ '^GW-AST-[A-Z]{2,4}-[0-9]{4}$'),   -- Rule 1
+  category_id text not null references asset_categories(id),
+  name text not null, manufacturer text, model text,
+  serial_number text not null, imei text, sim text, barcode text,
+  ownership_type text not null default 'Company Owned',
+  supplier_name text, invoice_number text, po_number text, purchase_date text, purchase_cost numeric(12,2) not null default 0,
+  warranty_start text, warranty_expiry text, funding text,
+  status asset_status not null default 'Available', condition asset_condition not null default 'New',
+  department_id text references departments(id), location_id text references locations(id), custodian_employee_id text references employees(id),
+  last_verification_date text, next_verification_date text,
+  specification text, accessories text, maintenance_notes text, remarks text,
+  invoice_attachment jsonb, warranty_attachment jsonb, photo jsonb,
+  registered_by text, registered_at text not null, registration_approved_by text,
+  updated_at timestamptz not null default now()
+);
+-- Rule 2: unique serial / IMEI / SIM (case-insensitive, blanks ignored)
+create unique index if not exists assets_serial_uq on assets (upper(serial_number));
+create unique index if not exists assets_imei_uq on assets (upper(imei)) where imei is not null and imei <> '';
+create unique index if not exists assets_sim_uq on assets (upper(sim)) where sim is not null and sim <> '';
+create index if not exists assets_status_idx on assets (status);
+create index if not exists assets_custodian_idx on assets (custodian_employee_id);
+
+-- ---------- Permanent history ----------
+create table if not exists asset_transactions (
+  id text primary key, type text not null, asset_id text not null references assets(id), date text not null, reference text,
+  from_employee_id text, to_employee_id text, from_department_id text, to_department_id text, from_location_id text, to_location_id text,
+  status_before asset_status not null, status_after asset_status not null, condition_before asset_condition, condition_after asset_condition,
+  performed_by_user_id text not null, performed_by_name text not null, reason text not null, remarks text,
+  updated_at timestamptz not null default now()
+);
+create index if not exists asset_transactions_asset_idx on asset_transactions (asset_id, date desc);
+
+create table if not exists audit_logs (
+  id text primary key, at text not null, user_id text, user_name text not null, role text, action text not null,
+  entity_type text not null, entity_id text not null, reason text not null, details text,
+  updated_at timestamptz not null default now()
+);
+
+-- ---------- Workflow records ----------
+create table if not exists handovers (
   id text primary key check (id ~ '^GW-HO-[0-9]{6}-[0-9]{4}$'),
-  handover_date date not null default current_date,
-  employee_id uuid not null references employees(id),
-  issued_by uuid not null references users(id),
-  expected_return_date date,
-  purpose text,
-  location_of_use text,
-  approval approval_state not null default 'Pending Approval',
-  approved_by uuid references users(id),
-  approved_at timestamptz,
-  approval_comments text,
-  acknowledged boolean not null default false,
-  acknowledged_at timestamptz,
-  employee_signature text,
-  authorized_signatory uuid references users(id),
-  status text not null default 'Awaiting Approval' check (status in ('Draft','Awaiting Approval','Awaiting Acknowledgement','Active','Closed','Rejected')),
-  transfer_id text,
-  created_by uuid references users(id),
-  created_at timestamptz not null default now()
+  date text not null, employee_id text not null references employees(id), issued_by_user_id text not null, expected_return_date text,
+  purpose text, location_of_use text, items jsonb not null default '[]',
+  approval approval_state not null default 'Pending Approval', approved_by_user_id text, approved_at text, approval_comments text,
+  acknowledged boolean not null default false, acknowledged_at text, employee_signature text, authorized_signatory_user_id text,
+  status text not null, created_by_user_id text not null, created_at text not null, transfer_id text,
+  updated_at timestamptz not null default now()
 );
-create table asset_assignment_items (
-  id bigserial primary key,
-  assignment_id text not null references asset_assignments(id) on delete restrict,
-  asset_id text not null references assets(id),
-  condition asset_condition not null,
-  quantity int not null default 1,
-  accessories text,
-  remarks text
-);
--- Rule 3: an asset can be on only one open handover at a time. Enforced by the
--- assignment_items_issuable trigger below (insert requires status Available, which flips to Reserved).
-
-create table asset_returns (
+create table if not exists asset_returns (
   id text primary key check (id ~ '^GW-RT-[0-9]{6}-[0-9]{4}$'),
-  return_date date not null default current_date,
-  asset_id text not null references assets(id),
-  employee_id uuid not null references employees(id),
-  assignment_id text references asset_assignments(id),
-  received_by uuid not null references users(id),
-  condition_reported asset_condition not null,
-  accessories_returned text,
-  employee_remarks text,
-  employee_signature text,
-  receiver_signature text,
-  status text not null default 'Pending Inspection' check (status in ('Pending Inspection','Completed')),
-  created_by uuid references users(id),
-  created_at timestamptz not null default now()
+  date text not null, asset_id text not null references assets(id), employee_id text not null, handover_id text, received_by_user_id text not null,
+  condition_reported asset_condition not null, accessories_returned text, employee_remarks text,
+  inspected boolean not null default false, inspected_by_user_id text, inspection_date text, inspection_condition asset_condition, inspection_outcome text, inspection_notes text,
+  employee_signature text, receiver_signature text, status text not null, created_by_user_id text not null, created_at text not null,
+  updated_at timestamptz not null default now()
 );
-
-create table asset_inspections (              -- Rule 8: inspection after return or during verification
-  id bigserial primary key,
-  asset_id text not null references assets(id),
-  return_id text references asset_returns(id),
-  inspected_by uuid not null references users(id),
-  inspection_date date not null default current_date,
-  condition asset_condition not null,
-  outcome text not null check (outcome in ('Acceptable','Faulty','Damaged')),
-  resulting_status asset_status not null,
-  notes text,
-  created_at timestamptz not null default now()
-);
-
-create table asset_transfers (
+create table if not exists asset_transfers (
   id text primary key check (id ~ '^GW-TR-[0-9]{6}-[0-9]{4}$'),
-  transfer_date date not null default current_date,
-  asset_id text not null references assets(id),
-  from_employee_id uuid references employees(id),
-  to_employee_id uuid references employees(id),
-  from_department_id uuid references departments(id),
-  to_department_id uuid references departments(id),
-  from_location_id uuid references locations(id),
-  to_location_id uuid references locations(id),
-  reason text not null,
-  condition_at_transfer asset_condition not null,
-  requested_by uuid not null references users(id),
-  approval approval_state not null default 'Pending Approval',
-  approved_by uuid references users(id),
-  approved_at timestamptz,
-  approval_comments text,
-  status text not null default 'Awaiting Approval' check (status in ('Awaiting Approval','Approved','Completed','Rejected')),
-  completed_at timestamptz,
-  new_assignment_id text references asset_assignments(id),
-  created_at timestamptz not null default now()
+  date text not null, asset_id text not null references assets(id), from_employee_id text, to_employee_id text,
+  from_department_id text not null, to_department_id text not null, from_location_id text not null, to_location_id text not null,
+  reason text not null, condition_at_transfer asset_condition not null, requested_by_user_id text not null,
+  approval approval_state not null default 'Pending Approval', approved_by_user_id text, approved_at text, approval_comments text,
+  status text not null, completed_at text, new_handover_id text, created_at text not null,
+  updated_at timestamptz not null default now()
 );
-
-create table asset_repairs (
+create table if not exists asset_repairs (
   id text primary key check (id ~ '^GW-RP-[0-9]{6}-[0-9]{4}$'),
-  asset_id text not null references assets(id),
-  reported_date date not null default current_date,
-  reported_by uuid not null references users(id),
-  fault_description text not null,
-  vendor text,
-  estimated_cost numeric(12,2),
-  expected_return_date date,
-  actual_cost numeric(12,2),
-  completion_date date,
-  work_done text,
-  inspection_notes text,
-  inspected_by uuid references users(id),
-  outcome text check (outcome in ('Available','Assigned','Retired')),
-  approval approval_state not null default 'Pending Approval',
-  approved_by uuid references users(id),
-  status text not null default 'Open' check (status in ('Open','In Progress','Completed')),
-  status_before_repair asset_status,
-  custodian_before_repair uuid references employees(id),
-  created_at timestamptz not null default now()
+  asset_id text not null references assets(id), reported_date text not null, reported_by_user_id text not null, fault_description text not null,
+  vendor text, estimated_cost numeric(12,2), expected_return_date text, quotation jsonb, service_report jsonb,
+  actual_cost numeric(12,2), completion_date text, work_done text, inspection_notes text, inspected_by_user_id text, outcome text,
+  approval approval_state not null default 'Pending Approval', approved_by_user_id text, status text not null,
+  status_before_repair asset_status, custodian_before_repair text, created_at text not null,
+  updated_at timestamptz not null default now()
 );
-
-create table asset_incidents (               -- Rule 9: lost / damaged
+create table if not exists asset_incidents (
   id text primary key check (id ~ '^GW-INC-[0-9]{6}-[0-9]{4}$'),
-  asset_id text not null references assets(id),
-  incident_type text not null check (incident_type in ('Lost','Damaged')),
-  incident_date date not null,
-  reported_by_employee_id uuid not null references employees(id),
-  reported_by uuid not null references users(id),
-  location text,
-  description text not null,
-  police_report_no text,
-  investigated_by uuid references users(id),
-  investigation_notes text,
-  responsibility text,
-  recovery_action text,
-  recovery_amount numeric(12,2),
-  resolution text check (resolution in ('Repair','Recovered','Written Off','Retired')),
-  approval approval_state not null default 'Pending Approval',
-  approved_by uuid references users(id),
-  approved_at timestamptz,
-  status text not null default 'Reported' check (status in ('Reported','Under Investigation','Awaiting Approval','Closed')),
-  created_at timestamptz not null default now()
+  asset_id text not null references assets(id), type text not null check (type in ('Lost','Damaged')), incident_date text not null,
+  reported_by_employee_id text not null, reported_by_user_id text not null, location text, description text not null, police_report_no text,
+  investigated_by_user_id text, investigation_notes text, responsibility text, recovery_action text, recovery_amount numeric(12,2), resolution text,
+  approval approval_state not null default 'Pending Approval', approved_by_user_id text, approved_at text, status text not null, created_at text not null,
+  updated_at timestamptz not null default now()
 );
-
-create table asset_disposals (               -- Rule 10: retirement + disposal with authorization and proof
+create table if not exists asset_disposals (
   id text primary key check (id ~ '^GW-DSP-[0-9]{6}-[0-9]{4}$'),
-  asset_id text not null references assets(id),
-  retirement_requested_by uuid not null references users(id),
-  retirement_requested_at timestamptz not null default now(),
-  retirement_reason text not null,
-  technical_recommendation text,
-  retirement_approval approval_state not null default 'Pending Approval',
-  retirement_approved_by uuid references users(id),
-  retirement_approved_at timestamptz,
-  data_erased boolean,
-  disposal_method text check (disposal_method in ('Sale','Scrap','Donation','Return to Lessor','E-Waste Vendor','Write Off')),
-  disposal_date date,
-  disposal_value numeric(12,2),
-  disposal_vendor text,
-  disposal_approval approval_state not null default 'Pending Approval',
-  disposal_approved_by uuid references users(id),
-  disposal_approved_at timestamptz,
-  status text not null default 'Retirement Pending' check (status in ('Retirement Pending','Retired','Disposal Pending','Disposed','Rejected')),
-  created_at timestamptz not null default now()
+  asset_id text not null references assets(id), retirement_requested_by_user_id text not null, retirement_requested_at text not null,
+  retirement_reason text not null, technical_recommendation text,
+  retirement_approval approval_state not null default 'Pending Approval', retirement_approved_by_user_id text, retirement_approved_at text,
+  data_erased boolean, data_erasure_certificate jsonb, disposal_method text, disposal_date text, disposal_value numeric(12,2), disposal_vendor text, disposal_proof jsonb,
+  disposal_approval approval_state not null default 'Pending Approval', disposal_approved_by_user_id text, disposal_approved_at text,
+  status text not null, created_at text not null,
+  updated_at timestamptz not null default now()
+);
+create table if not exists asset_approvals (
+  id text primary key, entity_type text not null, entity_id text not null, requested_by_user_id text not null, requested_at text not null,
+  approver_role text not null, decision approval_state not null default 'Pending Approval', decided_by_user_id text, decided_at text, comments text,
+  updated_at timestamptz not null default now()
+);
+create table if not exists asset_documents (
+  id text primary key, asset_id text references assets(id), entity_type text not null, entity_id text not null, document_type text not null,
+  attachment jsonb not null, uploaded_by_user_id text not null, uploaded_at text not null, remarks text,
+  updated_at timestamptz not null default now()
 );
 
-create table asset_approvals (
-  id bigserial primary key,
-  entity_type text not null check (entity_type in ('Registration','Handover','Transfer','Repair','Incident','Retirement','Disposal','Return')),
-  entity_id text not null,
-  requested_by uuid not null references users(id),
-  requested_at timestamptz not null default now(),
-  approver_role text not null references roles(code),
-  decision approval_state not null default 'Pending Approval',
-  decided_by uuid references users(id),
-  decided_at timestamptz,
-  comments text
-);
-create index asset_approvals_pending_idx on asset_approvals (decision, approver_role);
-
-create table asset_documents (
-  id bigserial primary key,
-  asset_id text references assets(id),
-  entity_type text not null,
-  entity_id text not null,
-  document_type text not null,               -- Invoice, Warranty, Photograph, Quotation, Service Report, Proof of Disposal, Signed Form, ...
-  file_name text not null,
-  mime_type text,
-  size_bytes bigint,
-  storage_path text,                          -- Supabase Storage object path (bucket: asset-documents)
-  uploaded_by uuid not null references users(id),
-  uploaded_at timestamptz not null default now(),
-  remarks text
-);
-create index asset_documents_asset_idx on asset_documents (asset_id);
-
-create table audit_logs (                     -- Rule 11
-  id bigserial primary key,
-  at timestamptz not null default now(),
-  user_id uuid references users(id),
-  user_name text not null,
-  role text,
-  action text not null,
-  entity_type text not null,
-  entity_id text not null,
-  reason text not null,
-  details text
-);
-create index audit_logs_at_idx on audit_logs (at desc);
-
--- ---------- Immutability (Rule 6) ----------
+-- ---------- Rule 6: history is append-only ----------
 create or replace function forbid_change() returns trigger language plpgsql as $$
-begin
-  raise exception 'Table % is append-only; rows cannot be updated or deleted', tg_table_name;
-end $$;
+begin raise exception 'Table % is append-only; rows cannot be updated or deleted', tg_table_name; end $$;
+drop trigger if exists asset_transactions_immutable on asset_transactions;
 create trigger asset_transactions_immutable before update or delete on asset_transactions for each row execute function forbid_change();
+drop trigger if exists audit_logs_immutable on audit_logs;
 create trigger audit_logs_immutable before update or delete on audit_logs for each row execute function forbid_change();
 
--- ---------- Reference number generation ----------
-create table reference_counters (
-  kind text not null,                         -- HO, RT, TR, RP, INC, DSP, VF
-  period text not null,                       -- YYYYMM
-  last_value int not null default 0,
-  primary key (kind, period)
-);
-create or replace function next_reference(p_kind text) returns text language plpgsql as $$
-declare v int; p text := to_char(now(), 'YYYYMM');
-begin
-  insert into reference_counters (kind, period, last_value) values (p_kind, p, 1)
-    on conflict (kind, period) do update set last_value = reference_counters.last_value + 1
-    returning last_value into v;
-  return format('GW-%s-%s-%s', p_kind, p, lpad(v::text, 4, '0'));
-end $$;
-create or replace function next_asset_id(p_category uuid) returns text language plpgsql as $$
-declare v int; c text;
-begin
-  update asset_categories set next_sequence = next_sequence + 1 where id = p_category returning next_sequence - 1, code into v, c;
-  return format('GW-AST-%s-%s', c, lpad(v::text, 4, '0'));
-end $$;
+-- ---------- updated_at maintenance ----------
+create or replace function touch_updated_at() returns trigger language plpgsql as $$
+begin new.updated_at = now(); return new; end $$;
+do $$ declare t text; begin
+  foreach t in array array['roles','departments','locations','asset_categories','employees','users','assets','handovers','asset_returns','asset_transfers','asset_repairs','asset_incidents','asset_disposals','asset_approvals','asset_documents'] loop
+    execute format('drop trigger if exists %I_touch on %I', t, t);
+    execute format('create trigger %I_touch before update on %I for each row execute function touch_updated_at()', t, t);
+  end loop; end $$;
 
--- ---------- Guard: only Available assets can be placed on a handover (Rule 4) ----------
-create or replace function check_asset_issuable() returns trigger language plpgsql as $$
-declare s asset_status;
-begin
-  select status into s from assets where id = new.asset_id;
-  if s <> 'Available' then raise exception 'Rule 4: asset % is % — only Available assets can be issued', new.asset_id, s; end if;
-  update assets set status = 'Reserved', updated_at = now() where id = new.asset_id;
-  return new;
-end $$;
-create trigger assignment_items_issuable before insert on asset_assignment_items for each row execute function check_asset_issuable();
-
--- ---------- First login: the Super Admin (link to the auth user after sign-up) ----------
--- insert into users (id, name, email, role) values ('<auth.users.id>', 'System Administrator', 'greenwarriorit19@gmail.com', 'super_admin');
-
--- ---------- Row Level Security (Supabase) ----------
-alter table assets enable row level security;
-alter table asset_transactions enable row level security;
-alter table asset_assignments enable row level security;
-alter table audit_logs enable row level security;
-
-create or replace function current_role_code() returns text language sql stable as $$
-  select role from users where id = auth.uid()
+-- ---------- Access control ----------
+-- Signed-in staff (Supabase Auth) whose email exists in `users` may read and write; the application
+-- enforces role permissions and business rules, the database enforces uniqueness and immutability.
+create or replace function app_user_id() returns text language sql stable security definer as $$
+  select id from users where lower(email) = lower(coalesce(auth.jwt() ->> 'email', '')) and active limit 1
 $$;
-create or replace function current_employee_id() returns uuid language sql stable as $$
-  select employee_id from users where id = auth.uid()
-$$;
-create or replace function current_department_id() returns uuid language sql stable as $$
-  select department_id from users where id = auth.uid()
-$$;
+do $$ declare t text; begin
+  foreach t in array array['roles','departments','locations','asset_categories','employees','users','assets','asset_transactions','audit_logs','handovers','asset_returns','asset_transfers','asset_repairs','asset_incidents','asset_disposals','asset_approvals','asset_documents'] loop
+    execute format('alter table %I enable row level security', t);
+    execute format('drop policy if exists %I_staff on %I', t, t);
+    execute format('create policy %I_staff on %I for all to authenticated using (app_user_id() is not null) with check (app_user_id() is not null)', t, t);
+  end loop; end $$;
 
--- Everyone with a role can read according to scope; writes go through the API / edge functions using the service role.
-create policy assets_read on assets for select using (
-  current_role_code() in ('super_admin','asset_admin','auditor')
-  or (current_role_code() = 'dept_head' and department_id = current_department_id())
-  or (current_role_code() = 'employee' and custodian_employee_id = current_employee_id())
-);
-create policy transactions_read on asset_transactions for select using (
-  current_role_code() in ('super_admin','asset_admin','auditor','dept_head')
-  or from_employee_id = current_employee_id() or to_employee_id = current_employee_id()
-);
-create policy assignments_read on asset_assignments for select using (
-  current_role_code() in ('super_admin','asset_admin','auditor')
-  or (current_role_code() = 'dept_head' and employee_id in (select id from employees where department_id = current_department_id()))
-  or employee_id = current_employee_id()
-);
-create policy audit_read on audit_logs for select using (current_role_code() in ('super_admin','asset_admin','auditor'));
+-- ---------- Realtime (live updates between users) ----------
+do $$ declare t text; begin
+  foreach t in array array['roles','departments','locations','asset_categories','employees','users','assets','asset_transactions','audit_logs','handovers','asset_returns','asset_transfers','asset_repairs','asset_incidents','asset_disposals','asset_approvals','asset_documents'] loop
+    begin execute format('alter publication supabase_realtime add table %I', t); exception when duplicate_object then null; when undefined_object then null; end;
+  end loop; end $$;
+
+-- ---------- Starting master data (only when empty) ----------
+insert into departments (id, code, name) values ('D-ADM','ADM','Administration'), ('D-OPS','OPS','Operations'), ('D-IT','IT','Information Technology'), ('D-FIN','FIN','Finance & Accounts'), ('D-HR','HR','Human Resources') on conflict (id) do nothing;
+insert into locations (id, code, name, address) values ('L-HO','HO','Head Office – Puducherry','Puducherry'), ('L-PM','PM','PM Zone Depot',null), ('L-OM','OM','OM Zone Depot',null), ('L-WS','WS','Vehicle Workshop',null) on conflict (id) do nothing;
+insert into asset_categories (id, code, name, verification_interval_months) values ('C-MOB','MOB','Mobile Phone',6), ('C-LAP','LAP','Laptop',6), ('C-TAB','TAB','Tablet',6), ('C-GPS','GPS','GPS Tracker',3), ('C-CAM','CAM','Camera / Body Camera',6), ('C-SIM','SIM','SIM Card',12), ('C-FUR','FUR','Furniture & Fixtures',12) on conflict (id) do nothing;
+-- The first login. Create the same email in Authentication → Users, then sign in with it.
+insert into users (id, name, email, role) values ('U-SA', 'System Administrator', 'greenwarriorit19@gmail.com', 'super_admin') on conflict (id) do nothing;
+insert into audit_logs (id, at, user_id, user_name, role, action, entity_type, entity_id, reason)
+  values ('AL-000001', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'), 'U-SA', 'System Administrator', 'super_admin', 'DATABASE_INITIALISED', 'System', 'DB', 'Supabase database created')
+  on conflict (id) do nothing;
 
 -- ---------- Reporting views ----------
-create view v_asset_register as
+create or replace view v_asset_register as
 select a.id, c.name as category, a.name, a.manufacturer, a.model, a.serial_number, a.imei, a.sim, a.status, a.condition,
-       e.name as custodian, e.employee_code, d.name as department, l.name as location,
-       a.purchase_date, a.purchase_cost, a.warranty_expiry
+       e.name as custodian, e.employee_code, d.name as department, l.name as location, a.purchase_date, a.purchase_cost, a.warranty_expiry
 from assets a
 join asset_categories c on c.id = a.category_id
 left join employees e on e.id = a.custodian_employee_id
 left join departments d on d.id = a.department_id
 left join locations l on l.id = a.location_id;
 
-create view v_dashboard_metrics as
-select
-  count(*) as total_assets,
+create or replace view v_dashboard_metrics as
+select count(*) as total_assets,
   count(*) filter (where status = 'Available') as available,
   count(*) filter (where status in ('Assigned','Transferred')) as assigned,
   count(*) filter (where status = 'Under Repair') as under_repair,
@@ -445,6 +237,5 @@ select
   count(*) filter (where status = 'Lost') as lost,
   count(*) filter (where status = 'Retired') as retired,
   count(*) filter (where status = 'Disposed') as disposed,
-  coalesce(sum(purchase_cost) filter (where status <> 'Disposed'), 0) as total_purchase_value,
-  count(*) filter (where warranty_expiry between current_date and current_date + 30 and status not in ('Retired','Disposed')) as warranty_expiring_30d
+  coalesce(sum(purchase_cost) filter (where status <> 'Disposed'), 0) as total_purchase_value
 from assets;

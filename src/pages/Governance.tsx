@@ -264,11 +264,11 @@ export function SettingsPage() {
         </Section>
       )}
       {tab === 'data' && <Section title="Data">
-        <p>This build stores data in the browser (localStorage) so it runs without a server. Take a <b>JSON backup</b> regularly and keep it outside this PC; <b>Restore</b> loads a backup into this browser. Use the export below to back up, or reset to the demonstration dataset. The Supabase / PostgreSQL schema is in <code>supabase/schema.sql</code>.</p>
+        {store.mode === 'supabase' ? <p>Data is stored in the shared <b>Supabase</b> database; every user sees the same live records and Supabase keeps the backups. The JSON download below is an extra offline copy.</p> : <p>This build stores data in the browser (localStorage) so it runs without a server. Take a <b>JSON backup</b> regularly and keep it outside this PC; <b>Restore</b> loads a backup into this browser.</p>}
         <div className="btn-row">
           <button className="btn" onClick={() => { const a = document.createElement('a'); a.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(store.exportJson()); a.download = `gw-asset-db-${new Date().toISOString().slice(0, 10)}.json`; a.click(); }}>Download JSON backup</button>
-          <label className="btn" style={{ display: 'inline-block' }}>Restore from JSON backup<input type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (!f) return; if (!confirm(`Replace ALL current data with the contents of ${f.name}? This cannot be undone.`)) { e.target.value = ''; return; } f.text().then(txt => run(() => store.importDatabase(txt), 'Backup restored.')); e.target.value = ''; }} /></label>
-          <button className="btn danger" onClick={() => { if (confirm('Remove ALL records (assets, employees, handovers, history, users except Super Admin) and reset to an empty database? Departments, locations and categories are kept. This cannot be undone.')) store.startEmpty(); }}>Reset to empty database</button>
+          {store.mode === 'local' && <><label className="btn" style={{ display: 'inline-block' }}>Restore from JSON backup<input type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (!f) return; if (!confirm(`Replace ALL current data with the contents of ${f.name}? This cannot be undone.`)) { e.target.value = ''; return; } f.text().then(txt => run(() => store.importDatabase(txt), 'Backup restored.')); e.target.value = ''; }} /></label>
+          <button className="btn danger" onClick={() => { if (confirm('Remove ALL records (assets, employees, handovers, history, users except Super Admin) and reset to an empty database? Departments, locations and categories are kept. This cannot be undone.')) store.startEmpty(); }}>Reset to empty database</button></>}
         </div>
       </Section>}
 

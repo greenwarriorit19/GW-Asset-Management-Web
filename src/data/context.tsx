@@ -1,12 +1,13 @@
 import { createContext, useContext, useSyncExternalStore, type ReactNode } from 'react';
-import { store, type Store } from './store';
+import { store, type Store, type SessionState } from './store';
 import type { Database } from './types';
 
-const Ctx = createContext<{ db: Database; store: Store } | null>(null);
+const Ctx = createContext<{ db: Database; store: Store; session: SessionState } | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const db = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
-  return <Ctx.Provider value={{ db, store }}>{children}</Ctx.Provider>;
+  const session = useSyncExternalStore(store.subscribe, store.getState, store.getState);
+  return <Ctx.Provider value={{ db, store, session }}>{children}</Ctx.Provider>;
 }
 
 export function useStore() {

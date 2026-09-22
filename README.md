@@ -21,19 +21,31 @@ For a multi-user deployment, apply `supabase/schema.sql` to a PostgreSQL/Supabas
 persistence in `src/data/store.ts` (`load()` / `commit()`) with API calls — the business rules, reference
 numbering and document templates are independent of storage.
 
+## Connect to Supabase (shared, multi-user database)
+
+1. Supabase → **SQL Editor** → paste `supabase/schema.sql` → Run (safe to re-run).
+2. Supabase → **Authentication → Users → Add user**: `greenwarriorit19@gmail.com` with a password (this email is
+   pre-registered as the Super Admin in the `users` table). Add further staff the same way after creating them in
+   *Users & Permissions* with the same email.
+3. Copy `.env.example` to `.env` and paste the **anon public** key from *Project Settings → API*.
+4. `npm run dev` / `npm run build`. The app now shows a sign-in screen; all data lives in Supabase and changes
+   made by one user appear live for the others. Without a `.env` the app runs in browser-local mode.
+
 ## Structure
 
 | Path | Purpose |
 |---|---|
 | `src/data/types.ts` | Domain model (assets, transactions, handovers, returns, transfers, repairs, incidents, verifications, disposals, approvals, documents, audit log) |
-| `src/data/store.ts` | Business rules, role permissions, reference numbering, append-only transactions & audit |
+| `src/data/store.ts` | Business rules, role permissions, reference numbering, append-only transactions & audit; local or Supabase persistence |
+| `src/data/supabase.ts` | Supabase client, row mapping, diff-based writes, Realtime subscription, auth |
 | `src/data/master.ts` | Empty live database: base departments, locations, categories, Super Admin |
 | `tests/fixtures/demo.ts` | Demonstration dataset used only by the automated tests |
 | `src/pages/` | 14 modules (Dashboard, Asset Tracker, Registration, Inventory, Handover, Return, Transfer, Repair, Incidents, Disposal, Reports, Users, Audit Log, Documents) |
 | `src/documents/` | A4 document templates — Registration, Handover, Return (with Inspection), Transfer, Repair, Lost/Damaged, Retirement & Disposal, Asset History, Employee Clearance |
 | `src/components/A4Document.tsx` | Print / PDF / PNG export and QR generation |
 | `src/lib/export.ts` | Excel / CSV / PDF report export |
-| `supabase/schema.sql` | 16-table PostgreSQL schema with immutability triggers, reference sequences, RLS and reporting views |
+| `supabase/schema.sql` | 17-table PostgreSQL schema (one table per app entity) with append-only triggers, RLS, Realtime and views |
+| `tests/schema.test.ts` | Applies the schema on an in-process PostgreSQL and round-trips every record type through it |
 
 ## Business rules enforced (`src/data/store.ts`)
 

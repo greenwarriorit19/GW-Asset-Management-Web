@@ -16,6 +16,7 @@ import { Disposals } from './pages/Disposals';
 import { Reports } from './pages/Reports';
 import { ApprovalsQueue } from './pages/Approvals';
 import { AuditLogPage, DocumentsPage, UsersPage, SettingsPage } from './pages/Governance';
+import { Login } from './pages/Login';
 
 /** Route guard: the menu hides pages a role cannot use; this stops them being opened by URL as well. */
 function Guard({ perm, children }: { perm: Permission | Permission[]; children: React.ReactElement }) {
@@ -31,9 +32,18 @@ function ScrollToTop() {
 }
 
 // HashRouter so QR codes (…/#/assets/GW-AST-MOB-0001) resolve on any static host without rewrite rules.
+/** Shows the loading / sign-in screens until the shared database is ready. */
+function Gate({ children }: { children: React.ReactElement }) {
+  const { session } = useStore();
+  if (session.phase === 'loading') return <div className="login-wrap"><div className="login"><h2>Connecting to the database…</h2><p className="muted small">Loading asset records from Supabase.</p></div></div>;
+  if (session.phase === 'login') return <Login />;
+  return children;
+}
+
 export default function App() {
   return (
     <StoreProvider>
+      <Gate>
       <HashRouter>
         <ScrollToTop />
         <Routes>
@@ -61,6 +71,7 @@ export default function App() {
           </Route>
         </Routes>
       </HashRouter>
+      </Gate>
     </StoreProvider>
   );
 }

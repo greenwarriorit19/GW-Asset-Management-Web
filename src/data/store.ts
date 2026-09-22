@@ -1,4 +1,5 @@
 import { emptyDatabase } from './master';
+import * as sb from './supabase';
 import type {
   Database, User, Role, Asset, AssetStatus, Condition, Transaction, TransactionType, Handover, HandoverItem,
   AssetReturn, Transfer, Repair, Incident, Verification, Disposal, Approval, Attachment, Employee, Category,
@@ -28,15 +29,111 @@ export const addMonths = (dateStr: string, months: number) => {
 type Listener = () => void;
 
 
+export type StoreMode = 'local' | 'supabase';
+export interface SessionState {
+  mode: StoreMode;
+  phase: 'loading' | 'login' | 'ready';
+  email?: string;               // signed-in Supabase email (supabase mode)
+  error?: string;               // load / login error
+  sync: { state: 'idle' | 'saving' | 'saved' | 'error'; message?: string; at?: string };
+}
+
 export class Store {
   private db: Database;
   private listeners = new Set<Listener>();
   currentUser: User;
+  readonly mode: StoreMode;
+  private session: SessionState;
+  private saving: Promise<void> = Promise.resolve();
+  private reloadPending = false;
+  private unsubscribeRealtime?: () => void;
+  readonly ready: Promise<void>;
 
   constructor() {
-    this.db = this.load();
-    const savedUser = localStorage.getItem(SESSION_KEY);
-    this.currentUser = this.db.users.find(u => u.id === savedUser) ?? this.db.users[0];
+    this.mode = sb.supabaseConfigured() ? 'supabase' : 'local';
+    if (this.mode === 'local') {
+      this.db = this.load();
+      const savedUser = localStorage.getItem(SESSION_KEY);
+      this.currentUser = this.db.users.find(u => u.id === savedUser) ?? this.db.users[0];
+      this.session = { mode: 'local', phase: 'ready', sync: { state: 'idle' } };
+      this.lastCommitted = this.db;
+      this.ready = Promise.resolve();
+    } else {
+      this.db = emptyDatabase();
+      this.currentUser = this.db.users[0];
+      this.session = { mode: 'supabase', phase: 'loading', sync: { state: 'idle' } };
+      this.lastCommitted = this.db;
+      this.ready = this.initSupabase();
+    }
+  }
+
+  // ---------- Supabase session ----------
+  getState = () => this.session;
+  private setSession(patch: Partial<SessionState>) { this.session = { ...this.session, ...patch }; this.listeners.forEach(l => l()); }
+
+  private async initSupabase() {
+    try {
+      const email = await sb.currentAuthEmail();
+      if (email) await this.enterWithEmail(email);
+      else this.setSession({ phase: 'login' });
+    } catch (e) {
+      this.setSession({ phase: 'login', error: e instanceof Error ? e.message : String(e) });
+    }
+    sb.onAuthChange(email => { if (!email && this.session.phase === 'ready') this.leave(); });
+  }
+
+  /** Loads the database for a signed-in email and enters the app if that email has a user record. */
+  private async enterWithEmail(email: string) {
+    const db = await sb.loadDatabase();
+    const user = sb.matchUser(db, email);
+    if (!user) {
+      await sb.signOut();
+      throw new BusinessRuleError(`${email} is signed in, but has no user account in the Asset Management System. Ask the Super Admin to add it under Users & Permissions.`);
+    }
+    this.db = db;
+    this.lastCommitted = db;
+    this.currentUser = user;
+    this.unsubscribeRealtime?.();
+    this.unsubscribeRealtime = sb.subscribeChanges(() => this.reloadFromServer());
+    this.setSession({ phase: 'ready', email, error: undefined, sync: { state: 'idle' } });
+  }
+
+  async login(email: string, password: string) {
+    this.setSession({ error: undefined });
+    try {
+      await sb.signIn(email, password);
+      await this.enterWithEmail(email);
+    } catch (e) {
+      this.setSession({ phase: 'login', error: e instanceof Error ? e.message : String(e) });
+      throw e;
+    }
+  }
+  async logout() { await sb.signOut(); this.leave(); }
+  private leave() {
+    this.unsubscribeRealtime?.(); this.unsubscribeRealtime = undefined;
+    this.db = emptyDatabase(); this.currentUser = this.db.users[0];
+    this.setSession({ phase: 'login', email: undefined });
+  }
+  async resetPassword(email: string) { await sb.resetPassword(email); }
+  async updatePassword(password: string) { await sb.updatePassword(password); }
+
+  /** Another user changed something: re-read the database once any in-flight save has finished. */
+  private async reloadFromServer() {
+    if (this.session.phase !== 'ready') return;
+    this.reloadPending = true;
+    await this.saving;
+    if (!this.reloadPending) return;
+    this.reloadPending = false;
+    try {
+      const db = await sb.loadDatabase();
+      this.db = db;
+      this.lastCommitted = db;
+      const me = db.users.find(u => u.id === this.currentUser.id);
+      if (me) this.currentUser = me;
+      this.listeners.forEach(l => l());
+    } catch (e) {
+      this.setSession({ sync: { state: 'error', message: e instanceof Error ? e.message : String(e), at: nowIso() } });
+    }
   }
 
   private load(): Database {
@@ -55,10 +152,32 @@ export class Store {
     return db;
   }
 
-  private commit() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.db));
-    this.db = { ...this.db };            // new reference so React re-renders
-    this.listeners.forEach(l => l());
+  private commit(prev?: Database) {
+    if (this.mode === 'local') {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.db));
+      this.db = { ...this.db };            // new reference so React re-renders
+      this.listeners.forEach(l => l());
+      return;
+    }
+    const before = prev ?? this.lastCommitted;
+    this.db = { ...this.db };
+    const next = this.db;
+    this.lastCommitted = next;
+    this.mutating = false;
+    this.setSession({ sync: { state: 'saving' } });
+    this.saving = this.saving.then(() => sb.persistDiff(before, next)).then(
+      r => this.setSession({ sync: { state: 'saved', at: nowIso(), message: `${r.upserts + r.deletes} row(s)` } }),
+      e => this.setSession({ sync: { state: 'error', at: nowIso(), message: `Not saved to the server: ${e instanceof Error ? e.message : String(e)}` } }),
+    );
+  }
+  /** Snapshot the last state known to be on the server, so each commit only writes what changed. */
+  private lastCommitted!: Database;
+  private mutating = false;
+  /** Called at the start of every mutation; nested calls (e.g. inspection → auto incident) keep the outer snapshot. */
+  private snapshotBefore() {
+    if (this.mode !== 'supabase' || this.mutating) return;
+    this.lastCommitted = { ...this.db };   // collections are replaced immutably, so a shallow copy is a true "before"
+    this.mutating = true;
   }
 
   subscribe = (l: Listener) => { this.listeners.add(l); return () => { this.listeners.delete(l); }; };
@@ -67,6 +186,7 @@ export class Store {
   /** Wipes all transactional and mock records. Keeps departments, locations, categories and the Super Admin login. */
   startEmpty() {
     this.require('settings.manage');
+    if (this.mode === 'supabase') throw new BusinessRuleError('The shared database keeps its history permanently and cannot be reset from the app.');
     this.db = emptyDatabase();
     this.currentUser = this.db.users[0];
     localStorage.setItem(SESSION_KEY, this.currentUser.id);
@@ -76,6 +196,7 @@ export class Store {
   /** Restores a JSON backup produced by exportJson(). Replaces ALL current data. */
   importDatabase(input: string | Database) {
     this.require('settings.manage');
+    if (this.mode === 'supabase') throw new BusinessRuleError('Restore is only available in browser-local mode; the shared database is backed up by Supabase.');
     const db = typeof input === 'string' ? JSON.parse(input) as Database : input;
     const required: (keyof Database)[] = ['users', 'roles', 'departments', 'locations', 'categories', 'employees', 'assets', 'transactions', 'handovers', 'auditLogs'];
     for (const k of required) if (!Array.isArray(db[k])) throw new BusinessRuleError(`Backup file is not valid: missing "${k}".`);
@@ -91,6 +212,7 @@ export class Store {
 
   // ---------- Session ----------
   switchUser(userId: string) {
+    if (this.mode === 'supabase') throw new BusinessRuleError('Sign out and sign in as the other user.');
     const u = this.db.users.find(x => x.id === userId);
     if (!u) return;
     this.currentUser = u;
@@ -199,6 +321,7 @@ export class Store {
 
   // ---------- 2. Asset registration ----------
   registerAsset(input: Omit<Asset, 'id' | 'status' | 'registeredBy' | 'registeredAt' | 'custodianEmployeeId'> & { reason: string }): Asset {
+    this.snapshotBefore();
     this.require('asset.register');
     if (!input.name?.trim()) throw new BusinessRuleError('Asset name is required.');
     if (!input.serialNumber?.trim()) throw new BusinessRuleError('Serial number is required.');
@@ -224,6 +347,7 @@ export class Store {
   }
 
   updateAsset(id: string, patch: Partial<Asset>, reason: string) {
+    this.snapshotBefore();
     this.require('asset.edit');
     this.requireReason(reason);
     const before = this.asset(id);
@@ -241,6 +365,7 @@ export class Store {
   }
 
   approveRegistration(assetId: string, approved: boolean, comments: string) {
+    this.snapshotBefore();
     this.require('settings.manage');
     this.decideApproval('Registration', assetId, approved, comments);
     if (approved) this.setAsset(assetId, { registrationApprovedBy: this.currentUser.id });
@@ -250,6 +375,7 @@ export class Store {
 
   // ---------- 4. Employee handover ----------
   createHandover(input: { employeeId: string; issuedByUserId: string; expectedReturnDate?: string; purpose: string; locationOfUse: string; items: HandoverItem[]; reason: string }): Handover {
+    this.snapshotBefore();
     this.require('handover.create');
     this.requireReason(input.reason);
     if (!input.items.length) throw new BusinessRuleError('Add at least one asset to the handover.');
@@ -283,6 +409,7 @@ export class Store {
   }
 
   approveHandover(id: string, approved: boolean, comments: string) {
+    this.snapshotBefore();
     this.require('handover.approve');
     const h = this.db.handovers.find(x => x.id === id);
     if (!h || h.status !== 'Awaiting Approval') throw new BusinessRuleError('Handover is not awaiting approval.');
@@ -305,6 +432,7 @@ export class Store {
 
   /** Rule 7 — the employee must acknowledge. Only then does status become Assigned. */
   acknowledgeHandover(id: string, signature: string, authorizedSignatoryUserId: string) {
+    this.snapshotBefore();
     const h = this.db.handovers.find(x => x.id === id);
     if (!h || h.status !== 'Awaiting Acknowledgement') throw new BusinessRuleError('Handover is not awaiting acknowledgement.');
     const isEmployee = this.currentUser.employeeId === h.employeeId;
@@ -324,6 +452,7 @@ export class Store {
 
   // ---------- 5. Return ----------
   createReturn(input: { assetId: string; conditionReported: Condition; accessoriesReturned: string; employeeRemarks?: string; employeeSignature: string; reason: string }): AssetReturn {
+    this.snapshotBefore();
     this.require('return.create');
     this.requireReason(input.reason);
     const a = this.asset(input.assetId);
@@ -351,6 +480,7 @@ export class Store {
   }
 
   inspectReturn(id: string, input: { inspectionCondition: Condition; inspectionOutcome: AssetReturn['inspectionOutcome']; inspectionNotes: string; reason: string }) {
+    this.snapshotBefore();
     this.require('return.inspect');
     this.requireReason(input.reason);
     const r = this.db.returns.find(x => x.id === id);
@@ -370,6 +500,7 @@ export class Store {
 
   // ---------- 6. Transfer ----------
   requestTransfer(input: { assetId: string; toEmployeeId?: string; toDepartmentId: string; toLocationId: string; reason: string; conditionAtTransfer: Condition }): Transfer {
+    this.snapshotBefore();
     this.require('transfer.request');
     this.requireReason(input.reason);
     const a = this.asset(input.assetId);
@@ -391,6 +522,7 @@ export class Store {
   }
 
   approveTransfer(id: string, approved: boolean, comments: string) {
+    this.snapshotBefore();
     this.require('transfer.approve');
     const t = this.db.transfers.find(x => x.id === id);
     if (!t || t.status !== 'Awaiting Approval') throw new BusinessRuleError('Transfer is not awaiting approval.');
@@ -402,6 +534,7 @@ export class Store {
 
   /** Completes an approved transfer: releases the old custodian (history retained), then issues a fresh handover to the new custodian. */
   completeTransfer(id: string, reason: string) {
+    this.snapshotBefore();
     this.require('transfer.complete');
     this.requireReason(reason);
     const t = this.db.transfers.find(x => x.id === id);
@@ -436,6 +569,7 @@ export class Store {
 
   // ---------- 7. Repair ----------
   openRepair(input: { assetId: string; faultDescription: string; vendor: string; estimatedCost: number; expectedReturnDate?: string; quotation?: Attachment; reason: string }): Repair {
+    this.snapshotBefore();
     this.require('repair.create');
     this.requireReason(input.reason);
     const a = this.asset(input.assetId);
@@ -456,6 +590,7 @@ export class Store {
   }
 
   approveRepair(id: string, approved: boolean, comments: string) {
+    this.snapshotBefore();
     this.require('repair.approve');
     const r = this.db.repairs.find(x => x.id === id);
     if (!r || r.approval !== 'Pending Approval') throw new BusinessRuleError('Repair is not awaiting approval.');
@@ -466,6 +601,7 @@ export class Store {
   }
 
   completeRepair(id: string, input: { actualCost: number; completionDate: string; workDone: string; inspectionNotes: string; outcome: Repair['outcome']; conditionAfter: Condition; serviceReport?: Attachment; reason: string }) {
+    this.snapshotBefore();
     this.require('repair.complete');
     this.requireReason(input.reason);
     const r = this.db.repairs.find(x => x.id === id);
@@ -488,6 +624,7 @@ export class Store {
 
   // ---------- 9. Lost / damaged ----------
   openIncident(input: { assetId: string; type: 'Lost' | 'Damaged'; incidentDate: string; reportedByEmployeeId: string; location: string; description: string; policeReportNo?: string; reason: string }, commit = true): Incident {
+    this.snapshotBefore();
     this.require('incident.report');
     this.requireReason(input.reason);
     const a = this.asset(input.assetId);
@@ -507,6 +644,7 @@ export class Store {
   }
 
   investigateIncident(id: string, input: { investigationNotes: string; responsibility: string; recoveryAction: string; recoveryAmount?: number; resolution: Incident['resolution']; reason: string }) {
+    this.snapshotBefore();
     this.require('incident.investigate');
     this.requireReason(input.reason);
     const inc = this.db.incidents.find(x => x.id === id);
@@ -517,6 +655,7 @@ export class Store {
   }
 
   approveIncident(id: string, approved: boolean, comments: string) {
+    this.snapshotBefore();
     this.require('incident.approve');
     const inc = this.db.incidents.find(x => x.id === id);
     if (!inc || inc.status !== 'Awaiting Approval') throw new BusinessRuleError('Incident is not awaiting approval.');
@@ -541,6 +680,7 @@ export class Store {
 
   // ---------- 8. Verification ----------
   recordVerification(input: { assetId: string; foundCustodianId?: string; foundLocationId?: string; foundCondition?: Condition; result: Verification['result']; notes?: string; nextVerificationDate: string; reason: string }): Verification {
+    this.snapshotBefore();
     this.require('verification.perform');
     this.requireReason(input.reason);
     const a = this.asset(input.assetId);
@@ -558,6 +698,7 @@ export class Store {
 
   // ---------- 10. Retirement & disposal ----------
   startRetirement(input: { assetId: string; retirementReason: string; technicalRecommendation?: string; reason: string }, commit = true, preApproved = false): Disposal {
+    this.snapshotBefore();
     if (!preApproved) this.require('disposal.request');
     this.requireReason(input.reason);
     const a = this.asset(input.assetId);
@@ -576,6 +717,7 @@ export class Store {
   }
 
   approveRetirement(id: string, approved: boolean, comments: string) {
+    this.snapshotBefore();
     this.require('disposal.approve_retirement');
     const d = this.db.disposals.find(x => x.id === id);
     if (!d || d.status !== 'Retirement Pending') throw new BusinessRuleError('Retirement is not pending.');
@@ -591,6 +733,7 @@ export class Store {
   }
 
   recordDisposal(id: string, input: { dataErased: boolean; disposalMethod: Disposal['disposalMethod']; disposalDate: string; disposalValue?: number; disposalVendor?: string; disposalProof?: Attachment; dataErasureCertificate?: Attachment; reason: string }) {
+    this.snapshotBefore();
     this.require('disposal.record');
     this.requireReason(input.reason);
     const d = this.db.disposals.find(x => x.id === id);
@@ -605,6 +748,7 @@ export class Store {
   }
 
   approveDisposal(id: string, approved: boolean, comments: string) {
+    this.snapshotBefore();
     this.require('disposal.approve');
     const d = this.db.disposals.find(x => x.id === id);
     if (!d || d.status !== 'Disposal Pending') throw new BusinessRuleError('Disposal is not pending authorization.');
@@ -625,6 +769,7 @@ export class Store {
     this.db.documents = [...this.db.documents, { id: this.seq('DOC-', this.db.documents), assetId, entityType, entityId, documentType, attachment: att, uploadedByUserId: this.currentUser.id, uploadedAt: nowIso(), remarks }];
   }
   uploadDocument(input: { assetId?: string; entityType: string; entityId: string; documentType: string; attachment: Attachment; remarks?: string }) {
+    this.snapshotBefore();
     this.require('documents.upload');
     this.attach(input.assetId, input.entityType, input.entityId, input.documentType, input.attachment, input.remarks);
     this.audit('DOCUMENT_UPLOADED', input.entityType, input.entityId, `Uploaded ${input.documentType}`, input.attachment.name);
@@ -634,6 +779,7 @@ export class Store {
   // ---------- 12. Users & master data ----------
   /** Creates or updates a role. super_admin is fixed; built-in roles keep their code and name but permissions may be tuned. */
   saveRole(r: RoleDef, reason = 'Role updated') {
+    this.snapshotBefore();
     this.require('users.manage');
     const code = (r.code.trim() || r.name).trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
     if (!code || !r.name.trim()) throw new BusinessRuleError('Role name is required.');
@@ -657,6 +803,7 @@ export class Store {
     return b;
   }
   deleteRole(code: string, reason: string) {
+    this.snapshotBefore();
     this.require('users.manage');
     this.requireReason(reason);
     const blockers = this.roleDeleteBlockers(code);
@@ -668,6 +815,7 @@ export class Store {
   }
 
   saveUser(u: User) {
+    this.snapshotBefore();
     this.require('users.manage');
     if (!this.roleDef(u.role)) throw new BusinessRuleError('Select a valid role.');
     const exists = this.db.users.some(x => x.id === u.id);
@@ -692,6 +840,7 @@ export class Store {
     return b;
   }
   deleteEmployee(id: string, reason: string) {
+    this.snapshotBefore();
     this.require('settings.manage');
     this.requireReason(reason);
     const e = this.employee(id);
@@ -715,6 +864,7 @@ export class Store {
     return b;
   }
   deleteUser(id: string, reason: string) {
+    this.snapshotBefore();
     this.require('users.manage');
     this.requireReason(reason);
     const u = this.user(id);
@@ -727,6 +877,7 @@ export class Store {
   }
 
   saveEmployee(e: Employee) {
+    this.snapshotBefore();
     this.require('settings.manage');
     const exists = this.db.employees.some(x => x.id === e.id);
     this.db.employees = exists ? this.db.employees.map(x => x.id === e.id ? e : x) : [...this.db.employees, e];
@@ -745,6 +896,7 @@ export class Store {
     return b;
   }
   deleteDepartment(id: string, reason: string) {
+    this.snapshotBefore();
     this.require('settings.manage');
     this.requireReason(reason);
     const d = this.department(id);
@@ -765,6 +917,7 @@ export class Store {
     return b;
   }
   deleteLocation(id: string, reason: string) {
+    this.snapshotBefore();
     this.require('settings.manage');
     this.requireReason(reason);
     const l = this.location(id);
@@ -780,6 +933,7 @@ export class Store {
     return n ? [`${n} asset(s) registered in this category`] : [];
   }
   deleteCategory(id: string, reason: string) {
+    this.snapshotBefore();
     this.require('settings.manage');
     this.requireReason(reason);
     const c = this.category(id);
@@ -792,6 +946,7 @@ export class Store {
   }
 
   saveCategory(c: Category) {
+    this.snapshotBefore();
     this.require('settings.manage');
     if (!/^[A-Z]{2,4}$/.test(c.code) || !c.name.trim()) throw new BusinessRuleError('Category needs a 2–4 letter code and a name.');
     if (this.db.categories.some(x => x.id !== c.id && x.code === c.code)) throw new BusinessRuleError(`Category code ${c.code} already exists.`);
@@ -801,6 +956,7 @@ export class Store {
     this.commit();
   }
   saveDepartment(d: Department) {
+    this.snapshotBefore();
     this.require('settings.manage');
     if (!d.code.trim() || !d.name.trim()) throw new BusinessRuleError('Department code and name are required.');
     if (this.db.departments.some(x => x.id !== d.id && x.code.toUpperCase() === d.code.toUpperCase())) throw new BusinessRuleError(`Department code ${d.code} already exists.`);
@@ -810,6 +966,7 @@ export class Store {
     this.commit();
   }
   saveLocation(l: Location) {
+    this.snapshotBefore();
     this.require('settings.manage');
     if (!l.code.trim() || !l.name.trim()) throw new BusinessRuleError('Location code and name are required.');
     if (this.db.locations.some(x => x.id !== l.id && x.code.toUpperCase() === l.code.toUpperCase())) throw new BusinessRuleError(`Location code ${l.code} already exists.`);
