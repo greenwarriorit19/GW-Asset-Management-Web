@@ -1,6 +1,7 @@
 import { useState, type ReactNode, type ChangeEvent } from 'react';
 import type { Attachment } from '../data/types';
 import { SearchSelect, type Option } from './SearchSelect';
+import { askReason } from './Dialog';
 import { driveEnabled, uploadToDrive, driveFileName } from '../lib/drive';
 export { SearchSelect };
 
@@ -164,7 +165,7 @@ export function RowActions({ onEdit, onDelete, blockers = [], label }: { onEdit:
     <div className="btn-row" style={{ flexWrap: 'nowrap', justifyContent: 'flex-end' }} onClick={e => e.stopPropagation()}>
       <button type="button" className="btn sm" onClick={onEdit}>Edit</button>
       <button type="button" className="btn sm danger" disabled={blockers.length > 0} title={blockers.length ? `Cannot delete: ${blockers.join('; ')}` : `Delete ${label}`}
-        onClick={() => { const reason = prompt(`Delete ${label}? Enter a reason:`); if (reason) onDelete(reason); }}>Delete</button>
+        onClick={async () => { const reason = await askReason({ title: `Delete ${label}`, message: 'This cannot be undone. The deletion and its reason are recorded in the audit log.' }); if (reason) onDelete(reason); }}>Delete</button>
     </div>
   );
 }

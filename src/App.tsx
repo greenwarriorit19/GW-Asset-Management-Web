@@ -16,6 +16,7 @@ import { Disposals } from './pages/Disposals';
 import { Reports } from './pages/Reports';
 import { AuditLogPage, DocumentsPage, UsersPage, SettingsPage } from './pages/Governance';
 import { Login } from './pages/Login';
+import { DialogHost } from './components/Dialog';
 
 /** Route guard: the menu hides pages a role cannot use; this stops them being opened by URL as well. */
 function Guard({ perm, children }: { perm: Permission | Permission[]; children: React.ReactElement }) {
@@ -70,6 +71,7 @@ export default function App() {
         </Routes>
       </HashRouter>
       </Gate>
+      <DialogHost />
     </StoreProvider>
   );
 }

@@ -6,6 +6,7 @@ import { PERMISSION_GROUPS, type Permission } from '../data/store';
 import { PageHead, Section, Status, DataTable, Input, Select, SearchSelect, FileInput, AttachmentLink, Modal, RowActions, useAction, fmtDateTime, fmtSize, type Column } from '../components/ui';
 import { getDriveConfig, setDriveConfig, testDriveConnection, signOutDrive, DEFAULT_FOLDER_ID, type DriveConfig } from '../lib/drive';
 import { exportRows } from '../lib/export';
+import { askReason, askConfirm } from '../components/Dialog';
 
 // ---------- 13. Audit Log ----------
 export function AuditLogPage() {
@@ -175,7 +176,7 @@ export function UsersPage() {
         <Modal title={db.users.some(u => u.id === edit.id) ? `Edit ${edit.name}` : 'New User'} onClose={() => setEdit(null)} footer={<>
           {db.users.some(u => u.id === edit.id) && (() => { const blockers = store.userDeleteBlockers(edit.id); return (
             <button className="btn danger" style={{ marginRight: 'auto' }} title={blockers.length ? `Cannot delete: ${blockers.join('; ')}` : 'Permanently delete this login'} disabled={blockers.length > 0}
-              onClick={() => { const reason = prompt(`Delete user ${edit.name}? Enter a reason:`); if (reason) { const ok = run(() => store.deleteUser(edit.id, reason), 'User deleted.'); if (ok !== undefined) setEdit(null); } }}>
+              onClick={async () => { const reason = await askReason({ title: `Delete user ${edit.name}`, message: 'This cannot be undone. The deletion and its reason are recorded in the audit log.' }); if (reason) { const ok = run(() => store.deleteUser(edit.id, reason), 'User deleted.'); if (ok !== undefined) setEdit(null); } }}>
               {blockers.length ? 'Delete (has history — deactivate instead)' : 'Delete User'}
             </button>); })()}
           <button className="btn ghost" onClick={() => { setEdit(null); setLoginMsg(null); setPassword(''); }}>{loginMsg && isNewUser ? 'Close' : 'Cancel'}</button><button className="btn primary" disabled={loginBusy || (live && isNewUser && password.length < 8) || !edit.name.trim() || !edit.email.trim()} title={live && isNewUser && password.length < 8 ? 'Enter an initial password of at least 8 characters' : undefined} onClick={saveUser}>{loginBusy ? 'Creating login…' : isNewUser && live ? 'Save & Create Login' : 'Save'}</button></>}>
@@ -195,7 +196,7 @@ export function UsersPage() {
               <div className="field span-full">
                 <label>Login (Supabase Auth)</label>
                 <div className="btn-row">
-                  <button type="button" className="btn sm" disabled={loginBusy} onClick={async () => { const pw = prompt(`Create a login for ${edit.email}. Enter an initial password (min 8 characters):`); if (!pw) return; setLoginBusy(true); try { setLoginMsg(describe(await store.createLogin(edit.id, pw), edit.email)); } catch (e) { setLoginMsg(e instanceof Error ? e.message : String(e)); } finally { setLoginBusy(false); } }}>Create login</button>
+                  <button type="button" className="btn sm" disabled={loginBusy} onClick={async () => { const pw = await askReason({ title: `Create login for ${edit.email}`, message: 'Set an initial password for this person. They can change it later with “Forgot password”.', confirmLabel: 'Create login', danger: false, reason: { label: 'Initial password', placeholder: 'At least 8 characters', minLength: 8 } }); if (!pw) return; setLoginBusy(true); try { setLoginMsg(describe(await store.createLogin(edit.id, pw), edit.email)); } catch (e) { setLoginMsg(e instanceof Error ? e.message : String(e)); } finally { setLoginBusy(false); } }}>Create login</button>
                   <button type="button" className="btn sm" disabled={loginBusy} onClick={async () => { setLoginBusy(true); try { await store.sendPasswordReset(edit.id); setLoginMsg(`Password reset link emailed to ${edit.email}.`); } catch (e) { setLoginMsg(e instanceof Error ? e.message : String(e)); } finally { setLoginBusy(false); } }}>Send password reset</button>
                   <span className="hint">Deactivating the user (untick Active) blocks sign-in immediately.</span>
                 </div>
@@ -212,7 +213,7 @@ export function UsersPage() {
         return (
         <Modal title={isNewRole ? 'New Role' : `${roleEdit.name} — permissions`} onClose={() => setRoleEdit(null)} wide footer={<>
           {!isNewRole && <button className="btn danger" style={{ marginRight: 'auto' }} disabled={blockers.length > 0} title={blockers.length ? `Cannot delete: ${blockers.join('; ')}` : 'Delete this role'}
-            onClick={() => { const reason = prompt(`Delete role ${roleEdit.name}? Enter a reason:`); if (reason) { if (run(() => store.deleteRole(roleEdit.code, reason), 'Role deleted.') !== undefined) setRoleEdit(null); } }}>
+            onClick={async () => { const reason = await askReason({ title: `Delete role ${roleEdit.name}`, message: 'This cannot be undone. The deletion and its reason are recorded in the audit log.' }); if (reason) { if (run(() => store.deleteRole(roleEdit.code, reason), 'Role deleted.') !== undefined) setRoleEdit(null); } }}>
             {blockers.length ? `Delete (${blockers.join('; ')})` : 'Delete Role'}</button>}
           <button className="btn ghost" onClick={() => setRoleEdit(null)}>Cancel</button>
           {!locked && <button className="btn primary" onClick={() => { if (run(() => store.saveRole(roleEdit, isNewRole ? 'Role created' : 'Permissions updated'), 'Role saved.') !== undefined) setRoleEdit(null); }}>{isNewRole ? 'Create Role' : 'Save Permissions'}</button>}
@@ -311,15 +312,15 @@ export function SettingsPage() {
         {store.mode === 'supabase' ? <p>Data is stored in the shared <b>Supabase</b> database; every user sees the same live records and Supabase keeps the backups. The JSON download below is an extra offline copy.</p> : <p>This build stores data in the browser (localStorage) so it runs without a server. Take a <b>JSON backup</b> regularly and keep it outside this PC; <b>Restore</b> loads a backup into this browser.</p>}
         <div className="btn-row">
           <button className="btn" onClick={() => { const a = document.createElement('a'); a.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(store.exportJson()); a.download = `gw-asset-db-${new Date().toISOString().slice(0, 10)}.json`; a.click(); }}>Download JSON backup</button>
-          {store.mode === 'local' && <><label className="btn" style={{ display: 'inline-block' }}>Restore from JSON backup<input type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (!f) return; if (!confirm(`Replace ALL current data with the contents of ${f.name}? This cannot be undone.`)) { e.target.value = ''; return; } f.text().then(txt => run(() => store.importDatabase(txt), 'Backup restored.')); e.target.value = ''; }} /></label>
-          <button className="btn danger" onClick={() => { if (confirm('Remove ALL records (assets, employees, handovers, history, users except Super Admin) and reset to an empty database? Departments, locations and categories are kept. This cannot be undone.')) store.startEmpty(); }}>Reset to empty database</button></>}
+          {store.mode === 'local' && <><label className="btn" style={{ display: 'inline-block' }}>Restore from JSON backup<input type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={async e => { const f = e.target.files?.[0]; if (!f) return; const ok = await askConfirm({ title: 'Restore backup', message: `Replace ALL current data with the contents of ${f.name}? This cannot be undone.`, confirmLabel: 'Restore', danger: true }); e.target.value = ''; if (!ok) return; const txt = await f.text(); run(() => store.importDatabase(txt), 'Backup restored.'); }} /></label>
+          <button className="btn danger" onClick={async () => { if (await askConfirm({ title: 'Reset to empty database', message: 'Removes ALL records (assets, employees, handovers, history, users except Super Admin). Departments, locations and categories are kept. This cannot be undone.', confirmLabel: 'Reset database', danger: true })) store.startEmpty(); }}>Reset to empty database</button></>}
         </div>
       </Section>}
 
       {emp && <Modal title={emp.name || 'New Employee'} onClose={() => setEmp(null)} footer={<>
           {db.employees.some(e => e.id === emp.id) && (() => { const blockers = store.employeeDeleteBlockers(emp.id); return (
             <button className="btn danger" style={{ marginRight: 'auto' }} title={blockers.length ? `Cannot delete: ${blockers.join('; ')}` : 'Permanently delete this employee'} disabled={blockers.length > 0}
-              onClick={() => { const reason = prompt(`Delete employee ${emp.name}? Enter a reason:`); if (reason) { if (run(() => store.deleteEmployee(emp.id, reason), 'Employee deleted.') !== undefined) setEmp(null); } }}>
+              onClick={async () => { const reason = await askReason({ title: `Delete employee ${emp.name}`, message: 'This cannot be undone. The deletion and its reason are recorded in the audit log.' }); if (reason) { if (run(() => store.deleteEmployee(emp.id, reason), 'Employee deleted.') !== undefined) setEmp(null); } }}>
               {blockers.length ? 'Delete (has asset history — mark Inactive instead)' : 'Delete Employee'}
             </button>); })()}
           <button className="btn ghost" onClick={() => setEmp(null)}>Cancel</button><button className="btn primary" onClick={() => { if (run(() => store.saveEmployee(emp), 'Employee saved.') !== undefined) setEmp(null); }}>Save</button></>}>
@@ -337,7 +338,7 @@ export function SettingsPage() {
         </div>
       </Modal>}
       {cat && <Modal title={cat.name || 'New Category'} onClose={() => setCat(null)} footer={<>
-          {db.categories.some(x => x.id === cat.id) && (() => { const b = store.categoryDeleteBlockers(cat.id); return <button className="btn danger" style={{ marginRight: 'auto' }} disabled={b.length > 0} title={b.length ? `Cannot delete: ${b.join('; ')}` : 'Delete'} onClick={() => { const reason = prompt(`Delete category ${cat.name}? Enter a reason:`); if (reason && run(() => store.deleteCategory(cat.id, reason), 'Category deleted.') !== undefined) setCat(null); }}>{b.length ? `Delete (in use: ${b.join('; ')})` : 'Delete Category'}</button>; })()}
+          {db.categories.some(x => x.id === cat.id) && (() => { const b = store.categoryDeleteBlockers(cat.id); return <button className="btn danger" style={{ marginRight: 'auto' }} disabled={b.length > 0} title={b.length ? `Cannot delete: ${b.join('; ')}` : 'Delete'} onClick={async () => { const reason = await askReason({ title: `Delete category ${cat.name}`, message: 'This cannot be undone. The deletion and its reason are recorded in the audit log.' }); if (reason && run(() => store.deleteCategory(cat.id, reason), 'Category deleted.') !== undefined) setCat(null); }}>{b.length ? `Delete (in use: ${b.join('; ')})` : 'Delete Category'}</button>; })()}
           <button className="btn ghost" onClick={() => setCat(null)}>Cancel</button><button className="btn primary" onClick={() => { if (run(() => store.saveCategory({ ...cat, code: cat.code.toUpperCase() }), 'Category saved.') !== undefined) setCat(null); }}>Save</button></>}>
         <div className="form-grid cols-2">
           <Input label="Code (3–4 letters, used in Asset ID)" required maxLength={4} value={cat.code} onChange={e => setCat({ ...cat, code: e.target.value.toUpperCase() })} hint={`GW-AST-${cat.code || 'XXX'}-0001`} />
@@ -346,7 +347,7 @@ export function SettingsPage() {
         </div>
       </Modal>}
       {dep && <Modal title={dep.name || 'New Department'} onClose={() => setDep(null)} footer={<>
-          {db.departments.some(x => x.id === dep.id) && (() => { const b = store.departmentDeleteBlockers(dep.id); return <button className="btn danger" style={{ marginRight: 'auto' }} disabled={b.length > 0} title={b.length ? `Cannot delete: ${b.join('; ')}` : 'Delete'} onClick={() => { const reason = prompt(`Delete department ${dep.name}? Enter a reason:`); if (reason && run(() => store.deleteDepartment(dep.id, reason), 'Department deleted.') !== undefined) setDep(null); }}>{b.length ? `Delete (in use: ${b.join('; ')})` : 'Delete Department'}</button>; })()}
+          {db.departments.some(x => x.id === dep.id) && (() => { const b = store.departmentDeleteBlockers(dep.id); return <button className="btn danger" style={{ marginRight: 'auto' }} disabled={b.length > 0} title={b.length ? `Cannot delete: ${b.join('; ')}` : 'Delete'} onClick={async () => { const reason = await askReason({ title: `Delete department ${dep.name}`, message: 'This cannot be undone. The deletion and its reason are recorded in the audit log.' }); if (reason && run(() => store.deleteDepartment(dep.id, reason), 'Department deleted.') !== undefined) setDep(null); }}>{b.length ? `Delete (in use: ${b.join('; ')})` : 'Delete Department'}</button>; })()}
           <button className="btn ghost" onClick={() => setDep(null)}>Cancel</button><button className="btn primary" onClick={() => { if (run(() => store.saveDepartment(dep), 'Department saved.') !== undefined) setDep(null); }}>Save</button></>}>
         <div className="form-grid cols-2">
           <Input label="Code" required value={dep.code} onChange={e => setDep({ ...dep, code: e.target.value.toUpperCase() })} />
@@ -355,7 +356,7 @@ export function SettingsPage() {
         </div>
       </Modal>}
       {loc && <Modal title={loc.name || 'New Location'} onClose={() => setLoc(null)} footer={<>
-          {db.locations.some(x => x.id === loc.id) && (() => { const b = store.locationDeleteBlockers(loc.id); return <button className="btn danger" style={{ marginRight: 'auto' }} disabled={b.length > 0} title={b.length ? `Cannot delete: ${b.join('; ')}` : 'Delete'} onClick={() => { const reason = prompt(`Delete location ${loc.name}? Enter a reason:`); if (reason && run(() => store.deleteLocation(loc.id, reason), 'Location deleted.') !== undefined) setLoc(null); }}>{b.length ? `Delete (in use: ${b.join('; ')})` : 'Delete Location'}</button>; })()}
+          {db.locations.some(x => x.id === loc.id) && (() => { const b = store.locationDeleteBlockers(loc.id); return <button className="btn danger" style={{ marginRight: 'auto' }} disabled={b.length > 0} title={b.length ? `Cannot delete: ${b.join('; ')}` : 'Delete'} onClick={async () => { const reason = await askReason({ title: `Delete location ${loc.name}`, message: 'This cannot be undone. The deletion and its reason are recorded in the audit log.' }); if (reason && run(() => store.deleteLocation(loc.id, reason), 'Location deleted.') !== undefined) setLoc(null); }}>{b.length ? `Delete (in use: ${b.join('; ')})` : 'Delete Location'}</button>; })()}
           <button className="btn ghost" onClick={() => setLoc(null)}>Cancel</button><button className="btn primary" onClick={() => { if (run(() => store.saveLocation(loc), 'Location saved.') !== undefined) setLoc(null); }}>Save</button></>}>
         <div className="form-grid cols-2">
           <Input label="Code" required value={loc.code} onChange={e => setLoc({ ...loc, code: e.target.value.toUpperCase() })} />
