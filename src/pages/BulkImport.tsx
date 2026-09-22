@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/context';
 import { PageHead, Section, Status, Input, useAction, fmtMoney } from '../components/ui';
-import { Loader } from '../components/Loader';
 import { ASSET_COLUMNS, EMPLOYEE_COLUMNS, downloadTemplate, readSheet, validateAssets, validateEmployees, type Parsed, type AssetRow, type EmployeeRow } from '../lib/bulk';
 
 type Kind = 'assets' | 'employees';
@@ -70,7 +69,7 @@ export function BulkImport() {
               <input type="file" accept=".xlsx,.xls,.csv" onChange={e => { const f = e.target.files?.[0] ?? null; setFile(f); if (f) parse(f, kind); }} /></div>
             <Input label="Reason (recorded on every imported record)" required value={reason} onChange={e => setReason(e.target.value)} />
           </div>
-          {parsing && <Loader label="Reading and checking the file…" />}
+          {parsing && <p className="muted small" style={{ marginTop: 10 }}>Reading and checking the file…</p>}
           {parseErr && <div className="alert error" style={{ marginTop: 10 }}>{parseErr}</div>}
           {rows && (
             <div className="btn-row" style={{ marginTop: 12 }}>

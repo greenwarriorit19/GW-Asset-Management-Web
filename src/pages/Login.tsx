@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useStore } from '../data/context';
 import { COMPANY } from '../components/A4Document';
-import { Loader } from '../components/Loader';
 
 /** Sign-in screen for the shared (Supabase) database. */
 export function Login() {
@@ -40,7 +39,7 @@ export function Login() {
         </label>
 
         <div className="signin-actions">
-          <button className="signin-btn primary" type="submit" disabled={busy}>{busy ? <Loader inline /> : 'Login'}</button>
+          <button className="signin-btn primary" type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Login'}</button>
         </div>
 
       </form>
