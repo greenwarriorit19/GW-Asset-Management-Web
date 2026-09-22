@@ -89,6 +89,21 @@ export function DateInput({ label, required, hint, span, className, ...rest }: F
   );
 }
 
+/** Password field with a show / hide toggle. */
+export function PasswordInput({ label, required, hint, span, className, value, onChange, autoComplete, autoFocus, minLength }: FieldBase & { value: string; onChange: React.ChangeEventHandler<HTMLInputElement>; autoComplete?: string; autoFocus?: boolean; minLength?: number }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className={`field ${spanClass(span)} ${className ?? ''}`}>
+      <label>{label}{required && <span className="req">*</span>}</label>
+      <div className="pw">
+        <input type={show ? 'text' : 'password'} required={required} value={value} onChange={onChange} autoComplete={autoComplete} autoFocus={autoFocus} minLength={minLength} />
+        <button type="button" className="pw-toggle" onClick={() => setShow(s => !s)} tabIndex={-1} aria-label={show ? 'Hide password' : 'Show password'} title={show ? 'Hide password' : 'Show password'}>{show ? 'Hide' : 'Show'}</button>
+      </div>
+      {hint && <span className="hint">{hint}</span>}
+    </div>
+  );
+}
+
 export function ReadOnly({ label, value, span }: { label: string; value: ReactNode; span?: FieldBase['span'] }) {
   return (
     <div className={`field ${spanClass(span)}`}>

@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/context';
 import { type AuditLog, type AssetDocument, type Attachment, type User, type Role, type Employee, type Category, type Department, type Location, type RoleDef } from '../data/types';
 import { PERMISSION_GROUPS, type Permission } from '../data/store';
-import { PageHead, Section, Status, DataTable, Input, Select, SearchSelect, FileInput, AttachmentLink, Modal, RowActions, useAction, fmtDateTime, fmtSize, type Column, DateInput } from '../components/ui';
+import { PageHead, Section, Status, DataTable, Input, PasswordInput, Select, SearchSelect, FileInput, AttachmentLink, Modal, RowActions, useAction, fmtDateTime, fmtSize, type Column, DateInput } from '../components/ui';
 import { getDriveConfig, setDriveConfig, testDriveConnection, signOutDrive, DEFAULT_FOLDER_ID, type DriveConfig } from '../lib/drive';
 import { exportRows } from '../lib/export';
 import { askReason, askConfirm } from '../components/Dialog';
@@ -188,11 +188,8 @@ export function UsersPage() {
             <Select label="Linked Employee" value={edit.employeeId ?? ''} onChange={e => { const em = store.employee(e.target.value); setEdit({ ...edit, employeeId: e.target.value || undefined, departmentId: em?.departmentId ?? edit.departmentId }); }} placeholder="None" options={db.employees.map(e => ({ value: e.id, label: `${e.name} (${e.employeeCode})` }))} />
             <Select label="Department (for Department Head scope)" value={edit.departmentId ?? ''} onChange={e => setEdit({ ...edit, departmentId: e.target.value || undefined })} placeholder="None" options={db.departments.map(d => ({ value: d.id, label: d.name }))} hint="Create, edit or delete departments under Master Data → Departments" />
             <label className="checkbox field"><input type="checkbox" checked={edit.active} onChange={e => setEdit({ ...edit, active: e.target.checked })} /> Active</label>
-            {live && isNewUser && <div className={`field ${password.length > 0 && password.length < 8 ? 'invalid' : ''}`}>
-              <label>Initial password<span className="req">*</span></label>
-              <input type="password" required minLength={8} autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} style={password.length > 0 && password.length < 8 ? { borderColor: 'var(--danger)' } : undefined} />
-              <span className="hint" style={password.length > 0 && password.length < 8 ? { color: 'var(--danger)' } : undefined}>{password.length < 8 ? `${password.length}/8 characters — at least 8 required` : `${password.length} characters ✓`}. Share it with the person; they can change it with “Forgot password” on the sign-in screen.</span>
-            </div>}
+            {live && isNewUser && <PasswordInput label="Initial password" required minLength={8} autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)}
+              hint={`${password.length < 8 ? `${password.length}/8 characters — at least 8 required` : `${password.length} characters ✓`}. Share it with the person; they can change it with “Forgot password” on the sign-in screen.`} />}
             {live && !isNewUser && (
               <div className="field span-full">
                 <label>Login (Supabase Auth)</label>
