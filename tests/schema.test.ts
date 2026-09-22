@@ -112,3 +112,19 @@ describe('app model ↔ table round-trip', () => {
     expect(total).toBeGreaterThan(80);
   }, 120_000);
 });
+
+describe('supabase/reset.sql', () => {
+  it('after a v1-style database, reset.sql + schema.sql leaves a clean v2 schema', async () => {
+    const pg = new PGlite();
+    await pg.exec(`create schema if not exists auth; create or replace function auth.jwt() returns jsonb language sql stable as $$ select '{}'::jsonb $$;
+      do $$ begin create role authenticated; exception when duplicate_object then null; end $$; create publication supabase_realtime;`);
+    // a v1 leftover: same table name, different columns
+    await pg.exec(`create type role_code as enum ('super_admin'); create table asset_transactions (id bigserial primary key, occurred_at timestamptz);`);
+    await pg.exec(readFileSync('supabase/reset.sql', 'utf8'));
+    await pg.exec(readFileSync('supabase/schema.sql', 'utf8'));
+    const cols = await pg.query<{ column_name: string }>(`select column_name from information_schema.columns where table_name = 'asset_transactions'`);
+    expect(cols.rows.map(c => c.column_name)).toContain('date');
+    const r = await pg.query<{ n: number }>(`select count(*)::int as n from roles`);
+    expect(r.rows[0].n).toBe(5);
+  }, 60_000);
+});
