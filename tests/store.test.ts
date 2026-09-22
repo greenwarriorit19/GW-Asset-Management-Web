@@ -106,6 +106,26 @@ describe('Rules 3, 4, 7 — handover', () => {
     expect(s.getSnapshot().handovers.find(x => x.id === h.id)).toMatchObject({ status: 'Active', acknowledged: true });
     expect(s.assetHistory(a.id).some(x => x.type === 'HANDOVER' && x.toEmployeeId === 'E-006')).toBe(true);
   });
+  it('an active assignment can be amended: condition, qty, accessories and remarks, with history', () => {
+    const a = newAsset();
+    const id = issue(a.id);
+    const h = s.getSnapshot().handovers.find(x => x.id === id)!;
+    s.updateHandoverItems(id, [{ ...h.items[0], condition: 'Good', quantity: 2, accessories: 'Charger, Case', remarks: 'Case added later' }], 'Case handed over next day');
+    const after = s.getSnapshot().handovers.find(x => x.id === id)!;
+    expect(after.items[0]).toMatchObject({ condition: 'Good', quantity: 2, accessories: 'Charger, Case', remarks: 'Case added later' });
+    expect(s.asset(a.id)!.condition).toBe('Good');
+    const tx = s.assetHistory(a.id).find(t => t.type === 'UPDATE')!;
+    expect(tx.reason).toMatch(/condition New → Good/);
+    expect(() => s.updateHandoverItems(id, [{ assetId: newAsset().id, condition: 'New', quantity: 1, accessories: '', remarks: '' }], 'swap')).toThrow(/cannot be changed/);
+    s.cancelHandover(id, 'No longer needed');
+    expect(() => s.updateHandoverItems(id, after.items, 'too late')).toThrow(/can no longer be edited/);
+  });
+  it('employee logins need the shared database', async () => {
+    s.switchUser('U-SA');
+    await expect(s.createEmployeeLogin('E-006', 'password123')).rejects.toThrow(/Supabase/);
+    expect(s.employeeLogin('E-006')).toMatchObject({ employeeId: 'E-006' });   // seeded employee already has one
+    expect(s.employeeLogin('E-999')).toBeUndefined();
+  });
   it('inactive employee cannot receive assets', () => {
     s.switchUser('U-SA');
     const e = s.getSnapshot().employees.find(x => x.id === 'E-006')!;

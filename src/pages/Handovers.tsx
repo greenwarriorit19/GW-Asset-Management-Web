@@ -1,10 +1,10 @@
-import { Fragment, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/context';
-import { CONDITIONS, type Handover, type HandoverItem, type Condition } from '../data/types';
-import { PageHead, Section, Status, DataTable, Select, SearchSelect, ReadOnly, Alert, useAction, fmtDate, fmtDateTime, type Column } from '../components/ui';
+import type { Handover, HandoverItem } from '../data/types';
+import { PageHead, Section, Status, DataTable, Input, Select, SearchSelect, ReadOnly, Alert, Modal, useAction, fmtDate, fmtDateTime, type Column } from '../components/ui';
+import { AssetLines } from '../components/AssetLines';
 import { HandoverDoc, ClearanceDoc } from '../documents';
-import { parseAccessories, serializeAccessories, roman } from '../lib/accessories';
 import { askReason } from '../components/Dialog';
 
 export function HandoverList() {
@@ -12,6 +12,7 @@ export function HandoverList() {
   const nav = useNavigate();
   const [filter, setFilter] = useState('');
   const [clearanceEmp, setClearanceEmp] = useState('');
+  const [editing, setEditing] = useState<Handover | null>(null);
   const u = store.currentUser;
   const rows = db.handovers
     .filter(h => store.can('asset.view_all') || (store.can('asset.view_department') && store.employee(h.employeeId)?.departmentId === u.departmentId) || h.employeeId === u.employeeId)
@@ -25,6 +26,12 @@ export function HandoverList() {
     { key: 'items', header: 'Assets', render: h => h.items.map(i => i.assetId).join(', ') },
     { key: 'purpose', header: 'Purpose', render: h => h.purpose },
     { key: 'status', header: 'Status', render: h => <Status value={h.status} /> },
+    { key: 'actions', header: 'Actions', render: h => (
+      <div className="btn-row" style={{ flexWrap: 'nowrap', justifyContent: 'flex-end' }} onClick={e => e.stopPropagation()}>
+        <button type="button" className="btn sm" onClick={() => nav(`/handovers/${h.id}`)}>View</button>
+        {store.can('handover.create') && ['Active', 'Awaiting Acknowledgement'].includes(h.status) &&
+          <button type="button" className="btn sm" onClick={() => setEditing(h)}>Edit</button>}
+      </div>) },
   ];
   return (
     <>
@@ -38,7 +45,27 @@ export function HandoverList() {
         <span className="muted small">{rows.length} assignments</span>
       </div>
       <Section title="Assignment Register" compact><DataTable rows={rows} columns={columns} onRowClick={h => nav(`/handovers/${h.id}`)} /></Section>
+      {editing && <HandoverEdit handover={editing} onClose={() => setEditing(null)} />}
     </>
+  );
+}
+
+/** Amends the lines of an assignment: condition, quantity, accessories and remarks. Assets and employee are fixed. */
+function HandoverEdit({ handover, onClose }: { handover: Handover; onClose: () => void }) {
+  const { store } = useStore();
+  const { run, Messages } = useAction();
+  const [items, setItems] = useState<HandoverItem[]>(handover.items.map(i => ({ ...i })));
+  const [reason, setReason] = useState('');
+  return (
+    <Modal wide title={`Edit assignment ${handover.id}`} onClose={onClose} footer={<>
+      <button className="btn ghost" onClick={onClose}>Cancel</button>
+      <button className="btn primary" disabled={reason.trim().length < 3} onClick={() => { if (run(() => store.updateHandoverItems(handover.id, items, reason), 'Assignment updated.') !== undefined) onClose(); }}>Save Changes</button>
+    </>}>
+      <Messages />
+      <p className="muted small" style={{ marginTop: 0 }}>Assigned to <b>{store.employeeName(handover.employeeId)}</b>. Condition, quantity, accessories and remarks can be corrected; the assets themselves cannot be swapped — cancel the assignment and raise a new one for that.</p>
+      <AssetLines items={items} setItems={setItems} />
+      <div style={{ marginTop: 12 }}><Input label="Reason for the change" required value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Charger added at handover" hint="Recorded on each amended asset's history." /></div>
+    </Modal>
   );
 }
 
@@ -94,15 +121,9 @@ export function HandoverNew() {
     return a && a.status === 'Available' ? [{ assetId: a.id, condition: a.condition, quantity: 1, accessories: a.accessories ?? '', remarks: '' }] : [];
   });
   const [pick, setPick] = useState('');
-  // Editable accessory rows per asset (kept in state so a new blank row can exist before it is named).
-  type Acc = { name: string; model: string; qty: number };
-  const [accRows, setAccRows] = useState<Record<string, Acc[]>>(() => Object.fromEntries(items.map(it => [it.assetId, parseAccessories(it.accessories)])));
-  const rowsFor = (assetId: string, fallback: string) => accRows[assetId] ?? parseAccessories(fallback);
-  const setRows = (i: number, assetId: string, list: Acc[]) => { setAccRows(r => ({ ...r, [assetId]: list })); upd(i, { accessories: serializeAccessories(list) }); };
   const emp = store.employee(employeeId);
   const available = db.assets.filter(a => a.status === 'Available' && !items.some(i => i.assetId === a.id));
-  const add = () => { const a = store.asset(pick); if (!a) return; setItems([...items, { assetId: a.id, condition: a.condition, quantity: 1, accessories: a.accessories ?? '', remarks: '' }]); setAccRows(r => ({ ...r, [a.id]: parseAccessories(a.accessories) })); setPick(''); };
-  const upd = (i: number, p: Partial<HandoverItem>) => setItems(items.map((it, j) => j === i ? { ...it, ...p } : it));
+  const add = () => { const a = store.asset(pick); if (!a) return; setItems([...items, { assetId: a.id, condition: a.condition, quantity: 1, accessories: a.accessories ?? '', remarks: '' }]); setPick(''); };
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -142,49 +163,12 @@ export function HandoverNew() {
             <button type="button" className="btn sm primary" disabled={!pick} onClick={add}>Add to list</button>
             <span className="ab-avail">{available.length} available</span>
           </div>
-          <div className="table-wrap">
-          <table className="data assign">
-            <thead><tr><th className="ix">#</th><th>Asset ID / Accessories</th><th>Asset Type</th><th>Make and Model</th><th>Serial / IMEI / SIM</th><th>Condition</th><th>Qty</th><th>Remarks</th><th /></tr></thead>
-            <tbody>
-              {items.length === 0 && <tr><td className="empty" colSpan={9}>
-                {available.length > 0
-                  ? <>Pick an asset from <b>Add asset</b> above — {available.length} asset(s) are Available.</>
-                  : db.assets.length === 0
-                    ? <>No assets have been registered yet. <Link to="/assets/register">Register an asset</Link> or use <Link to="/assets/import">Bulk Import</Link> first.</>
-                    : <>None of the {db.assets.length} registered asset(s) are <b>Available</b> to assign — {[...new Set(db.assets.map(a => a.status))].map(st => `${db.assets.filter(a => a.status === st).length} ${st}`).join(', ')}. Return or free one, or <Link to="/assets/register">register a new asset</Link>.</>}
-              </td></tr>}
-              {items.map((it, i) => { const a = store.asset(it.assetId)!; const acc = rowsFor(it.assetId, it.accessories);
-                const setAcc = (list: Acc[]) => setRows(i, it.assetId, list);
-                return (
-                <Fragment key={it.assetId}>
-                  <tr className="assign-main">
-                    <td className="ix"><span className="ix-dot">{i + 1}</span></td>
-                    <td><span className="asset-chip mono">{a.id}</span><div className="muted small">{a.name}</div></td>
-                    <td>{store.catName(a.categoryId)}</td>
-                    <td>{a.manufacturer} {a.model}</td>
-                    <td className="mono">{[a.serialNumber, a.imei, a.sim].filter(Boolean).join(' / ') || <span className="muted">—</span>}</td>
-                    <td><SearchSelect className="tb" style={{ minWidth: 118 }} value={it.condition} onChange={e => upd(i, { condition: e.target.value as Condition })} options={CONDITIONS.map(c => ({ value: c, label: c }))} /></td>
-                    <td><input className="ai qty" type="number" min={1} value={it.quantity} onChange={e => upd(i, { quantity: Number(e.target.value) })} /></td>
-                    <td><input className="ai" value={it.remarks} placeholder="Optional note" onChange={e => upd(i, { remarks: e.target.value })} /></td>
-                    <td className="act"><button type="button" className="btn sm rm" onClick={() => setItems(items.filter((_, j) => j !== i))}>Remove</button></td>
-                  </tr>
-                  {acc.map((x, j) => (
-                    <tr key={j} className="assign-acc">
-                      <td className="ix"><span className="ix-sub">{roman(j + 1)}</span></td>
-                      <td><span className="acc-tag">Accessory</span></td>
-                      <td><input className="ai" value={x.name} placeholder="e.g. Charger" onChange={e => setAcc(acc.map((y, k) => k === j ? { ...y, name: e.target.value } : y))} /></td>
-                      <td><input className="ai" value={x.model} placeholder="Model / details" onChange={e => setAcc(acc.map((y, k) => k === j ? { ...y, model: e.target.value } : y))} /></td>
-                      <td className="dash">—</td><td className="dash">—</td>
-                      <td><input className="ai qty" type="number" min={1} value={x.qty} onChange={e => setAcc(acc.map((y, k) => k === j ? { ...y, qty: Math.max(1, Number(e.target.value) || 1) } : y))} /></td>
-                      <td />
-                      <td className="act"><button type="button" className="btn sm rm" onClick={() => setAcc(acc.filter((_, k) => k !== j))}>Remove</button></td>
-                    </tr>
-                  ))}
-                  <tr className="assign-add"><td /><td colSpan={8}><button type="button" className="btn sm add-acc" onClick={() => setAcc([...acc, { name: '', model: '', qty: 1 }])}>+ Add accessory</button></td></tr>
-                </Fragment>); })}
-            </tbody>
-          </table>
-          </div>
+          <AssetLines items={items} setItems={setItems} allowRemove empty={
+            available.length > 0
+              ? <>Pick an asset from <b>Add asset</b> above — {available.length} asset(s) are Available.</>
+              : db.assets.length === 0
+                ? <>No assets have been registered yet. <Link to="/assets/register">Register an asset</Link> or use <Link to="/assets/import">Bulk Import</Link> first.</>
+                : <>None of the {db.assets.length} registered asset(s) are <b>Available</b> to assign — {[...new Set(db.assets.map(a => a.status))].map(st => `${db.assets.filter(a => a.status === st).length} ${st}`).join(', ')}. Return or free one, or <Link to="/assets/register">register a new asset</Link>.</>} />
         </Section>
         <div className="btn-row end" style={{ marginBottom: 18 }}><Link className="btn ghost" to="/handovers">Cancel</Link><button className="btn primary" type="submit" disabled={!employeeId || items.length === 0}>Submit</button></div>
       </form>

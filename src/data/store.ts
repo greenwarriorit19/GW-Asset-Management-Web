@@ -128,6 +128,33 @@ export class Store {
     this.commit();
     return r;
   }
+  /** The app login linked to an employee, if one has been created. */
+  employeeLogin(employeeId: string): User | undefined {
+    const e = this.employee(employeeId);
+    return this.db.users.find(u => u.employeeId === employeeId)
+      ?? (e?.email ? this.db.users.find(u => u.email.trim().toLowerCase() === e.email.trim().toLowerCase()) : undefined);
+  }
+  /** Gives an employee a login for this app: an Employee-role user linked to the record, plus Supabase credentials. */
+  async createEmployeeLogin(employeeId: string, password: string): Promise<sb.CreateLoginResult> {
+    this.require('users.manage');
+    if (this.mode !== 'supabase') throw new BusinessRuleError('Logins exist only when the app is connected to Supabase.');
+    const e = this.employee(employeeId);
+    if (!e) throw new BusinessRuleError('Save the employee first, then create the login.');
+    const email = e.email.trim();
+    if (!email) throw new BusinessRuleError('Enter the employee’s email address first — it is the login name.');
+    if (password.length < 8) throw new BusinessRuleError('Password must be at least 8 characters.');
+    const r = await sb.createAuthUser(email, password);
+    this.snapshotBefore();
+    const existing = this.employeeLogin(employeeId);
+    if (existing) {
+      this.db.users = this.db.users.map(u => u.id === existing.id ? { ...u, employeeId, email, departmentId: u.departmentId ?? e.departmentId } : u);
+    } else {
+      this.db.users = [...this.db.users, { id: `U-${Date.now().toString(36).toUpperCase()}`, name: e.name, email, role: 'employee', employeeId, departmentId: e.departmentId, active: true }];
+    }
+    this.audit(r === 'already_exists' ? 'LOGIN_EXISTS' : 'LOGIN_CREATED', 'Employee', employeeId, 'Login credentials for the Asset Management System', email);
+    this.commit();
+    return r;
+  }
   /** Emails a password-reset link to an app user (Super Admin only). */
   async sendPasswordReset(userId: string) {
     this.require('users.manage');
@@ -497,6 +524,38 @@ export class Store {
     this.audit('HANDOVER_CREATED', 'Handover', id, input.reason, `${input.items.length} asset(s) to ${emp.name}`);
     this.commit();
     return h;
+  }
+
+  /** Edits the lines of an active assignment: condition, quantity, accessories and remarks. Assets and employee are fixed. */
+  updateHandoverItems(id: string, items: HandoverItem[], reason: string) {
+    this.snapshotBefore();
+    this.require('handover.create');
+    this.requireReason(reason);
+    const h = this.db.handovers.find(x => x.id === id);
+    if (!h) throw new BusinessRuleError('Assignment not found.');
+    if (!['Active', 'Awaiting Acknowledgement'].includes(h.status)) throw new BusinessRuleError(`A ${h.status.toLowerCase()} assignment can no longer be edited.`);
+    const before = new Map(h.items.map(i => [i.assetId, i]));
+    if (items.length !== h.items.length || items.some(i => !before.has(i.assetId))) {
+      throw new BusinessRuleError('The assets on an assignment cannot be changed. Cancel the assignment and raise a new one instead.');
+    }
+    this.db.handovers = this.db.handovers.map(x => x.id === id ? { ...x, items } : x);
+    for (const it of items) {
+      const was = before.get(it.assetId)!;
+      const a = this.asset(it.assetId);
+      const changes = [
+        was.condition !== it.condition ? `condition ${was.condition} → ${it.condition}` : '',
+        was.quantity !== it.quantity ? `qty ${was.quantity} → ${it.quantity}` : '',
+        (was.accessories ?? '') !== (it.accessories ?? '') ? 'accessories' : '',
+        (was.remarks ?? '') !== (it.remarks ?? '') ? 'remarks' : '',
+      ].filter(Boolean);
+      if (!changes.length) continue;
+      const st = a?.status ?? 'Assigned';
+      this.addTransaction({ type: 'UPDATE', assetId: it.assetId, reference: id, statusBefore: st, statusAfter: st, conditionBefore: was.condition, conditionAfter: it.condition, toEmployeeId: h.employeeId, reason: `Assignment ${id} amended: ${changes.join(', ')}. ${reason}` });
+      // The asset carries the condition it is held in, so a corrected condition follows through.
+      if (a && was.condition !== it.condition && a.custodianEmployeeId === h.employeeId) this.setAsset(a.id, { condition: it.condition });
+    }
+    this.audit('HANDOVER_UPDATED', 'Handover', id, reason, `${items.length} line(s)`);
+    this.commit();
   }
 
   /** Legacy rows only: completes an assignment that was left awaiting a signature before the signature step was removed. */
