@@ -334,9 +334,18 @@ body { background: var(--parchment); background-image: radial-gradient(1200px 60
 /* Glass cards: sections, metrics, modals, login */
 .section, .metric {
   background: rgba(255, 255, 255, 0.72);            /* translucent "glass" without per-card blur (keeps rendering fast) */
-  border: 1px solid var(--glass-border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;
+  border: 1px solid var(--glass-border); border-radius: var(--radius); box-shadow: var(--shadow);
 }
-.modal { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(16px) saturate(140%); -webkit-backdrop-filter: blur(16px) saturate(140%); border: 1px solid var(--glass-border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.metric { overflow: hidden; }
+/* Cards stay overflow-visible so dropdown lists and calendars can extend past the card edge; corners are rounded per part instead. */
+.section > .section-title { border-radius: var(--radius) var(--radius) 0 0; }
+.section > .section-body { border-radius: 0 0 var(--radius) var(--radius); }
+.section.compact > .section-body, .section.compact .table-wrap { border-radius: 0 0 var(--radius) var(--radius); overflow: hidden; }
+.section.compact .table-wrap { overflow-x: auto; }
+.modal { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(16px) saturate(140%); -webkit-backdrop-filter: blur(16px) saturate(140%); border: 1px solid var(--glass-border); border-radius: var(--radius); box-shadow: var(--shadow); }
+.modal .modal-head { border-radius: var(--radius) var(--radius) 0 0; }
+.modal .modal-foot { border-radius: 0 0 var(--radius) var(--radius); }
+.ss .ss-list, .dp .dp-pop { z-index: 80; }
 .section > .section-title { background: rgba(112,121,140,0.12); border-bottom: 1px solid rgba(112,121,140,0.25); }
 .metric .value { color: var(--navy); }
 .metric.alert { border-left: 4px solid var(--danger); } .metric.warn { border-left: 4px solid var(--warn); }
@@ -354,7 +363,6 @@ body { background: var(--parchment); background-image: radial-gradient(1200px 60
 
 /* Tables: rounded, header slate-tinted, soft row hover */
 .table-wrap { border-radius: var(--radius); }
-.section.compact .table-wrap { border-radius: 0 0 var(--radius) var(--radius); }
 table.data th { background: rgba(112,121,140,0.14); border-bottom: 1px solid var(--slate); color: var(--grey-900); }
 table.data td { border-bottom: 1px solid rgba(112,121,140,0.18); }
 table.data tr:hover td { background: rgba(255,255,255,0.55); }

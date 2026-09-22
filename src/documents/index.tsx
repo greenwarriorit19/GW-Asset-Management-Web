@@ -118,7 +118,7 @@ export function HandoverDoc({ handover }: { handover: Handover }) {
       <EmployeeBlock e={e} />
       <h4>Handover Details</h4>
       <Fields rows={[
-        ['Assignment Reference No', h.id], ['Assignment Date', fmtDate(h.date)],
+        ['Assignment Reference No', h.id], ['Assigned Date', fmtDate(h.date)],
         ['Issued By', personWithTitle(store, h.issuedByUserId)], ['Status', h.status === 'Rejected' ? 'Cancelled' : h.status],
       ]} />
       <h4>Assets Assigned</h4>

@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/context';
 import { CONDITIONS, type Handover, type HandoverItem, type Condition } from '../data/types';
-import { PageHead, Section, Status, DataTable, Input, Select, SearchSelect, TextArea, ReadOnly, Alert, useAction, fmtDate, fmtDateTime, type Column } from '../components/ui';
+import { PageHead, Section, Status, DataTable, Input, Select, SearchSelect, ReadOnly, Alert, useAction, fmtDate, fmtDateTime, type Column } from '../components/ui';
 import { HandoverDoc, ClearanceDoc } from '../documents';
 import { askReason } from '../components/Dialog';
 
@@ -101,7 +101,7 @@ export function HandoverNew() {
   const { run, Messages } = useAction();
   const [employeeId, setEmployeeId] = useState('');
   const [issuedBy, setIssuedBy] = useState(store.currentUser.id);
-  const [reason, setReason] = useState('Asset request approved by department');
+  const reason = 'Asset assigned to employee';
   const [items, setItems] = useState<HandoverItem[]>(() => {
     const pre = sp.get('asset'); const a = pre ? store.asset(pre) : undefined;
     return a && a.status === 'Available' ? [{ assetId: a.id, condition: a.condition, quantity: 1, accessories: a.accessories ?? '', remarks: '' }] : [];
@@ -139,7 +139,7 @@ export function HandoverNew() {
         <Section title="Assignment Details">
           <div className="form-grid cols-4">
             <ReadOnly label="Assignment Reference No" value={store.nextRef('HO', db.handovers)} />
-            <ReadOnly label="Assignment Date" value={fmtDate(new Date().toISOString())} />
+            <ReadOnly label="Assigned Date" value={fmtDate(new Date().toISOString())} />
             <Select label="Issued By" required value={issuedBy} onChange={e => setIssuedBy(e.target.value)} options={db.users.filter(u => ['asset_admin', 'super_admin'].includes(u.role)).map(u => ({ value: u.id, label: u.name }))} />
           </div>
         </Section>
@@ -160,12 +160,7 @@ export function HandoverNew() {
             </tbody>
           </table>
         </Section>
-        <Section title="Submission">
-          <div className="form-grid">
-            <TextArea label="Reason / request reference" required span="full" value={reason} onChange={e => setReason(e.target.value)} />
-          </div>
-          <div className="btn-row end" style={{ marginTop: 12 }}><Link className="btn ghost" to="/handovers">Cancel</Link><button className="btn primary" type="submit" disabled={!employeeId || items.length === 0}>Submit</button></div>
-        </Section>
+        <div className="btn-row end" style={{ marginBottom: 18 }}><Link className="btn ghost" to="/handovers">Cancel</Link><button className="btn primary" type="submit" disabled={!employeeId || items.length === 0}>Submit</button></div>
       </form>
     </>
   );
