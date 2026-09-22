@@ -51,7 +51,6 @@ export function Login() {
           <button className="signin-btn" type="button" onClick={forgot} disabled={busy}>Forgot Password</button>
         </div>
 
-        <p className="signin-note">Access is granted by the Super Admin under Users &amp; Permissions. Contact IT if you cannot sign in.</p>
       </form>
     </div>
   );
