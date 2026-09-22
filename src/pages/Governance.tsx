@@ -1,0 +1,324 @@
+import { Fragment, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useStore } from '../data/context';
+import { type AuditLog, type AssetDocument, type Attachment, type User, type Role, type Employee, type Category, type Department, type Location, type RoleDef } from '../data/types';
+import { PERMISSION_GROUPS, type Permission } from '../data/store';
+import { PageHead, Section, Status, DataTable, Input, Select, SearchSelect, FileInput, AttachmentLink, Modal, useAction, fmtDateTime, fmtSize, type Column } from '../components/ui';
+import { getDriveConfig, setDriveConfig, testDriveConnection, signOutDrive, DEFAULT_FOLDER_ID, type DriveConfig } from '../lib/drive';
+import { exportRows } from '../lib/export';
+
+// ---------- 13. Audit Log ----------
+export function AuditLogPage() {
+  const { db, store } = useStore();
+  const [q, setQ] = useState('');
+  const [user, setUser] = useState('');
+  const rows = db.auditLogs.filter(l => (!user || l.userId === user) && (!q || [l.action, l.entityId, l.entityType, l.reason, l.details ?? ''].some(x => x.toLowerCase().includes(q.toLowerCase()))));
+  const columns: Column<AuditLog>[] = [
+    { key: 'at', header: 'Date / Time', render: l => fmtDateTime(l.at) },
+    { key: 'userName', header: 'User', render: l => <>{l.userName}<div className="muted small">{store.roleName(l.role)}</div></> },
+    { key: 'action', header: 'Action', render: l => <span className="mono">{l.action}</span> },
+    { key: 'entity', header: 'Entity', render: l => <>{l.entityType} <span className="mono">{l.entityId}</span></> },
+    { key: 'reason', header: 'Reason', render: l => l.reason },
+    { key: 'details', header: 'Details', render: l => l.details ?? '' },
+  ];
+  return (
+    <>
+      <PageHead crumbs="Governance" title="Audit Log" actions={store.can('reports.export') && <button className="btn" onClick={() => exportRows('Audit-Log', rows.map(l => ({ 'Date / Time': fmtDateTime(l.at), User: l.userName, Role: l.role, Action: l.action, Entity: l.entityType, Reference: l.entityId, Reason: l.reason, Details: l.details ?? '' })), 'xlsx')}>Export Excel</button>} />
+      <div className="rule-note">Every important action records the user, role, date, time and reason (Rule 11). Entries are immutable.</div>
+      <div className="toolbar">
+        <input className="grow" placeholder="Search action, reference or reason…" value={q} onChange={e => setQ(e.target.value)} />
+        <SearchSelect className="tb" value={user} onChange={e => setUser(e.target.value)} placeholder="All users" options={db.users.map(u => ({ value: u.id, label: u.name }))} />
+        <span className="muted small">{rows.length} entries</span>
+      </div>
+      <Section title="Audit Trail" compact><DataTable rows={rows} columns={columns} /></Section>
+    </>
+  );
+}
+
+// ---------- 14. Document Management ----------
+export function DocumentsPage() {
+  const { db, store } = useStore();
+  const [sp] = useSearchParams();
+  const { run, Messages } = useAction();
+  const [assetId, setAssetId] = useState(sp.get('asset') ?? '');
+  const [entityType, setEntityType] = useState('Asset');
+  const [entityId, setEntityId] = useState(sp.get('asset') ?? '');
+  const [docType, setDocType] = useState('Invoice');
+  const [att, setAtt] = useState<Attachment>();
+  const [remarks, setRemarks] = useState('');
+  const [q, setQ] = useState('');
+  const [type, setType] = useState('');
+  const visibleIds = new Set(store.visibleAssets().map(a => a.id));
+  const rows = db.documents.filter(d => !d.assetId || visibleIds.has(d.assetId)).filter(d => (!type || d.documentType === type) && (!q || [d.attachment.name, d.entityId, d.assetId ?? '', d.documentType].some(x => x.toLowerCase().includes(q.toLowerCase())))).sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
+  const columns: Column<AssetDocument>[] = [
+    { key: 'type', header: 'Document Type', render: d => d.documentType },
+    { key: 'file', header: 'File', render: d => <>{d.attachment.name} <span className="muted small">({fmtSize(d.attachment.size)})</span></> },
+    { key: 'asset', header: 'Asset', render: d => <span className="mono">{d.assetId ?? '—'}</span> },
+    { key: 'entity', header: 'Linked Record', render: d => <>{d.entityType} <span className="mono">{d.entityId}</span></> },
+    { key: 'by', header: 'Uploaded', render: d => <>{fmtDateTime(d.uploadedAt)}<div className="muted small">{store.userName(d.uploadedByUserId)}</div></> },
+    { key: 'remarks', header: 'Remarks', render: d => d.remarks ?? '' },
+    { key: 'dl', header: '', render: d => <AttachmentLink a={d.attachment} /> },
+  ];
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!att) return;
+    const ok = run(() => store.uploadDocument({ assetId: assetId || undefined, entityType, entityId: entityId || assetId, documentType: docType, attachment: att, remarks }), 'Document uploaded.');
+    if (ok !== undefined) { setRemarks(''); setAtt(undefined); }
+  };
+  const entityOptions: Record<string, { value: string; label: string }[]> = {
+    Asset: db.assets.map(a => ({ value: a.id, label: `${a.id} — ${a.name}` })),
+    Handover: db.handovers.map(h => ({ value: h.id, label: h.id })), Return: db.returns.map(r => ({ value: r.id, label: r.id })), Transfer: db.transfers.map(t => ({ value: t.id, label: t.id })),
+    Repair: db.repairs.map(r => ({ value: r.id, label: r.id })), Incident: db.incidents.map(i => ({ value: i.id, label: i.id })), Disposal: db.disposals.map(d => ({ value: d.id, label: d.id })),
+  };
+  return (
+    <>
+      <PageHead crumbs="Governance" title="Document Management" />
+      <Messages />
+      {store.can('documents.upload') && (
+        <form onSubmit={submit}>
+          <Section title="Upload Document">
+            <div className="form-grid cols-4">
+              <Select label="Asset" value={assetId} onChange={e => { setAssetId(e.target.value); if (entityType === 'Asset') setEntityId(e.target.value); }} placeholder="Not asset-specific" options={entityOptions.Asset} />
+              <Select label="Linked Record Type" value={entityType} onChange={e => { setEntityType(e.target.value); setEntityId(e.target.value === 'Asset' ? assetId : ''); }} options={Object.keys(entityOptions).map(k => ({ value: k, label: k }))} />
+              <Select label="Linked Record" required value={entityId} onChange={e => setEntityId(e.target.value)} placeholder="Select…" options={entityOptions[entityType]} />
+              <Select label="Document Type" value={docType} onChange={e => setDocType(e.target.value)} options={['Invoice', 'Warranty', 'Photograph', 'Purchase Order', 'Quotation', 'Service Report', 'Signed Handover Form', 'Signed Return Form', 'Incident Evidence', 'Police Report', 'Proof of Disposal', 'Data Erasure Certificate', 'Other'].map(t => ({ value: t, label: t }))} />
+              <FileInput label="File" required span={2} accept=".pdf,image/*,.doc,.docx,.xls,.xlsx" tag={assetId || entityId || undefined} kind={docType} onChange={setAtt} />
+              <Input label="Remarks" span={2} value={remarks} onChange={e => setRemarks(e.target.value)} />
+            </div>
+            <div className="btn-row end" style={{ marginTop: 10 }}><button className="btn primary" type="submit" disabled={!att || !entityId}>Upload</button></div>
+          </Section>
+        </form>
+      )}
+      <div className="toolbar">
+        <input className="grow" placeholder="Search file, asset or reference…" value={q} onChange={e => setQ(e.target.value)} />
+        <SearchSelect className="tb" value={type} onChange={e => setType(e.target.value)} placeholder="All types" options={[...new Set(db.documents.map(d => d.documentType))].map(t => ({ value: t, label: t }))} />
+        <span className="muted small">{rows.length} documents</span>
+      </div>
+      <Section title="Document Library" compact><DataTable rows={rows} columns={columns} /></Section>
+    </>
+  );
+}
+
+// ---------- 12. Users, Roles & Permissions ----------
+const slug = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+
+export function UsersPage() {
+  const { db, store } = useStore();
+  const { run, Messages } = useAction();
+  const [edit, setEdit] = useState<User | null>(null);
+  const [roleEdit, setRoleEdit] = useState<RoleDef | null>(null);
+  const [isNewRole, setIsNewRole] = useState(false);
+  const roles = db.roles;
+  const columns: Column<User>[] = [
+    { key: 'name', header: 'Name' }, { key: 'email', header: 'Email' },
+    { key: 'role', header: 'Role', render: u => store.roleName(u.role) },
+    { key: 'emp', header: 'Employee', render: u => store.employee(u.employeeId)?.employeeCode ?? '—' },
+    { key: 'dept', header: 'Department', render: u => store.deptName(u.departmentId) },
+    { key: 'active', header: 'Status', render: u => <Status value={u.active ? 'Active' : 'Inactive'} /> },
+  ];
+  const roleRows = roles.map(r => ({ ...r, id: r.code }));
+  const togglePerm = (p: Permission) => roleEdit && setRoleEdit({ ...roleEdit, permissions: roleEdit.permissions.includes(p) ? roleEdit.permissions.filter(x => x !== p) : [...roleEdit.permissions, p] });
+  const setGroup = (perms: Permission[], on: boolean) => roleEdit && setRoleEdit({ ...roleEdit, permissions: on ? [...new Set([...roleEdit.permissions, ...perms])] : roleEdit.permissions.filter(x => !perms.includes(x)) });
+
+  return (
+    <>
+      <PageHead crumbs="Governance" title="Users, Roles and Permissions" actions={<>
+        <button className="btn" onClick={() => { setIsNewRole(true); setRoleEdit({ code: '', name: '', description: '', permissions: [], builtIn: false }); }}>Add Role</button>
+        <button className="btn primary" onClick={() => setEdit({ id: `U-${Date.now().toString(36).toUpperCase()}`, name: '', email: '', role: 'employee', active: true })}>Add User</button>
+      </>} />
+      <Messages />
+      <Section title="Users" compact><DataTable rows={db.users} columns={columns} onRowClick={u => setEdit({ ...u })} /></Section>
+
+      <Section title="Roles" compact right={<span className="muted small">Click a role to view or edit its permissions</span>}>
+        <DataTable rows={roleRows} onRowClick={r => { setIsNewRole(false); setRoleEdit({ code: r.code, name: r.name, description: r.description, permissions: [...r.permissions], builtIn: r.builtIn }); }} columns={[
+          { key: 'name', header: 'Role' }, { key: 'code', header: 'Code', render: r => <span className="mono">{r.code}</span> },
+          { key: 'description', header: 'Description', render: r => r.description ?? '' },
+          { key: 'perms', header: 'Permissions', num: true, render: r => r.permissions.length },
+          { key: 'users', header: 'Users', num: true, render: r => db.users.filter(u => u.role === r.code).length },
+          { key: 'type', header: 'Type', render: r => <Status value={r.builtIn ? 'Built-in' : 'Custom'} /> },
+        ]} />
+      </Section>
+
+      <Section title="Role Permission Matrix" compact>
+        <div className="table-wrap"><table className="data matrix">
+          <thead><tr><th>Permission</th>{roles.map(r => <th key={r.code} style={{ textAlign: 'center' }}>{r.name}</th>)}</tr></thead>
+          <tbody>{PERMISSION_GROUPS.map(g => <Fragment key={g.title}><tr><td colSpan={roles.length + 1} style={{ background: 'var(--grey-50)', fontWeight: 600 }}>{g.title}</td></tr>
+            {g.perms.map(p => <tr key={p.key}><td>{p.label} <span className="mono muted small">{p.key}</span></td>{roles.map(r => <td key={r.code} style={{ textAlign: 'center' }}>{r.permissions.includes(p.key) ? <span className="tick" aria-label="Allowed">✓</span> : <span className="muted">–</span>}</td>)}</tr>)}</Fragment>)}</tbody>
+        </table></div>
+      </Section>
+
+      {edit && (
+        <Modal title={db.users.some(u => u.id === edit.id) ? `Edit ${edit.name}` : 'New User'} onClose={() => setEdit(null)} footer={<>
+          {db.users.some(u => u.id === edit.id) && (() => { const blockers = store.userDeleteBlockers(edit.id); return (
+            <button className="btn danger" style={{ marginRight: 'auto' }} title={blockers.length ? `Cannot delete: ${blockers.join('; ')}` : 'Permanently delete this login'} disabled={blockers.length > 0}
+              onClick={() => { const reason = prompt(`Delete user ${edit.name}? Enter a reason:`); if (reason) { const ok = run(() => store.deleteUser(edit.id, reason), 'User deleted.'); if (ok !== undefined) setEdit(null); } }}>
+              {blockers.length ? 'Delete (has history — deactivate instead)' : 'Delete User'}
+            </button>); })()}
+          <button className="btn ghost" onClick={() => setEdit(null)}>Cancel</button><button className="btn primary" onClick={() => { const ok = run(() => store.saveUser(edit), 'User saved.'); if (ok !== undefined) setEdit(null); }}>Save</button></>}>
+          <div className="form-grid cols-2">
+            <Input label="Full Name" required value={edit.name} onChange={e => setEdit({ ...edit, name: e.target.value })} />
+            <Input label="Email" type="email" required value={edit.email} onChange={e => setEdit({ ...edit, email: e.target.value })} />
+            <Select label="Role" value={edit.role} onChange={e => setEdit({ ...edit, role: e.target.value as Role })} options={roles.map(r => ({ value: r.code, label: r.name }))} hint={store.roleDef(edit.role)?.description} />
+            <Select label="Linked Employee" value={edit.employeeId ?? ''} onChange={e => { const em = store.employee(e.target.value); setEdit({ ...edit, employeeId: e.target.value || undefined, departmentId: em?.departmentId ?? edit.departmentId }); }} placeholder="None" options={db.employees.map(e => ({ value: e.id, label: `${e.name} (${e.employeeCode})` }))} />
+            <Select label="Department (for Department Head scope)" value={edit.departmentId ?? ''} onChange={e => setEdit({ ...edit, departmentId: e.target.value || undefined })} placeholder="None" options={db.departments.map(d => ({ value: d.id, label: d.name }))} hint="Create, edit or delete departments under Master Data → Departments" />
+            <label className="checkbox field"><input type="checkbox" checked={edit.active} onChange={e => setEdit({ ...edit, active: e.target.checked })} /> Active</label>
+          </div>
+        </Modal>
+      )}
+
+      {roleEdit && (() => {
+        const locked = roleEdit.code === 'super_admin';
+        const blockers = isNewRole ? [] : store.roleDeleteBlockers(roleEdit.code);
+        return (
+        <Modal title={isNewRole ? 'New Role' : `${roleEdit.name} — permissions`} onClose={() => setRoleEdit(null)} wide footer={<>
+          {!isNewRole && <button className="btn danger" style={{ marginRight: 'auto' }} disabled={blockers.length > 0} title={blockers.length ? `Cannot delete: ${blockers.join('; ')}` : 'Delete this role'}
+            onClick={() => { const reason = prompt(`Delete role ${roleEdit.name}? Enter a reason:`); if (reason) { if (run(() => store.deleteRole(roleEdit.code, reason), 'Role deleted.') !== undefined) setRoleEdit(null); } }}>
+            {blockers.length ? `Delete (${blockers.join('; ')})` : 'Delete Role'}</button>}
+          <button className="btn ghost" onClick={() => setRoleEdit(null)}>Cancel</button>
+          {!locked && <button className="btn primary" onClick={() => { if (run(() => store.saveRole(roleEdit, isNewRole ? 'Role created' : 'Permissions updated'), 'Role saved.') !== undefined) setRoleEdit(null); }}>{isNewRole ? 'Create Role' : 'Save Permissions'}</button>}
+        </>}>
+          {locked && <div className="alert">The Super Admin role always has every permission and cannot be changed.</div>}
+          <div className="form-grid cols-3">
+            <Input label="Role Name" required value={roleEdit.name} disabled={roleEdit.builtIn} onChange={e => setRoleEdit({ ...roleEdit, name: e.target.value, code: isNewRole ? slug(e.target.value) : roleEdit.code })} />
+            <Input label="Code" value={roleEdit.code} readOnly hint={isNewRole ? 'Generated from the name' : undefined} />
+            <Input label="Description" value={roleEdit.description ?? ''} disabled={locked} onChange={e => setRoleEdit({ ...roleEdit, description: e.target.value })} />
+          </div>
+          <div className="btn-row" style={{ margin: '12px 0 6px' }}>
+            <span className="muted small">{roleEdit.permissions.length} of {PERMISSION_GROUPS.reduce((n, g) => n + g.perms.length, 0)} permissions selected</span>
+            {!locked && <><button type="button" className="btn sm ghost" onClick={() => setGroup(PERMISSION_GROUPS.flatMap(g => g.perms.map(p => p.key)), true)}>Select all</button><button type="button" className="btn sm ghost" onClick={() => setGroup(PERMISSION_GROUPS.flatMap(g => g.perms.map(p => p.key)), false)}>Clear</button></>}
+          </div>
+          <div className="grid cols-2">
+            {PERMISSION_GROUPS.map(g => (
+              <Section key={g.title} title={g.title} right={!locked && <label className="checkbox small"><input type="checkbox" checked={g.perms.every(p => roleEdit.permissions.includes(p.key))} onChange={e => setGroup(g.perms.map(p => p.key), e.target.checked)} /> all</label>}>
+                {g.perms.map(p => <label key={p.key} className="checkbox" style={{ padding: '4px 0' }}><input type="checkbox" disabled={locked} checked={roleEdit.permissions.includes(p.key)} onChange={() => togglePerm(p.key)} /> {p.label} <span className="mono muted small">{p.key}</span></label>)}
+              </Section>
+            ))}
+          </div>
+        </Modal>); })()}
+    </>
+  );
+}
+
+// ---------- Master data: employees, categories, departments, locations ----------
+export function SettingsPage() {
+  const { db, store } = useStore();
+  const { run, Messages } = useAction();
+  const [spTab] = useSearchParams();
+  const tabs = ['employees', 'categories', 'departments', 'locations', 'drive', 'data'] as const;
+  const [tab, setTab] = useState<typeof tabs[number]>(() => (tabs as readonly string[]).includes(spTab.get('tab') ?? '') ? spTab.get('tab') as typeof tabs[number] : 'employees');
+  const [drive, setDrive] = useState<DriveConfig>(getDriveConfig);
+  const [driveMsg, setDriveMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [emp, setEmp] = useState<Employee | null>(null);
+  const [cat, setCat] = useState<Category | null>(null);
+  const [dep, setDep] = useState<Department | null>(null);
+  const [loc, setLoc] = useState<Location | null>(null);
+  const nextEmpCode = `GW-EMP-${String(db.employees.length + 1).padStart(4, '0')}`;
+  return (
+    <>
+      <PageHead crumbs="Governance" title="Master Data & Settings" />
+      <Messages />
+      <div className="tabs">{(['employees', 'categories', 'departments', 'locations', 'drive', 'data'] as const).map(t => <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>{t === 'data' ? 'Data' : t === 'drive' ? 'Google Drive' : t[0].toUpperCase() + t.slice(1)}</button>)}</div>
+
+      {tab === 'employees' && <Section title="Employees" compact right={<button className="btn sm primary" onClick={() => setEmp({ id: `E-${Date.now().toString(36).toUpperCase()}`, employeeCode: nextEmpCode, name: '', designation: '', departmentId: db.departments[0]?.id ?? '', dateOfJoining: '', workLocationId: db.locations[0]?.id ?? '', mobile: '', email: '', active: true })}>Add Employee</button>}>
+        <DataTable rows={db.employees} onRowClick={e => setEmp({ ...e })} columns={[{ key: 'employeeCode', header: 'Employee ID' }, { key: 'name', header: 'Name' }, { key: 'designation', header: 'Designation' }, { key: 'dept', header: 'Department', render: e => store.deptName(e.departmentId) }, { key: 'loc', header: 'Location', render: e => store.locName(e.workLocationId) }, { key: 'mobile', header: 'Mobile' }, { key: 'assets', header: 'Assets Held', num: true, render: e => db.assets.filter(a => a.custodianEmployeeId === e.id).length }, { key: 'active', header: 'Status', render: e => <Status value={e.active ? 'Active' : 'Inactive'} /> }]} />
+      </Section>}
+      {tab === 'categories' && <Section title="Asset Categories" compact right={<button className="btn sm primary" onClick={() => setCat({ id: `C-${Date.now().toString(36).toUpperCase()}`, code: '', name: '', verificationIntervalMonths: 6 })}>Add Category</button>}>
+        <DataTable rows={db.categories} onRowClick={c => setCat({ ...c })} columns={[{ key: 'code', header: 'Code' }, { key: 'name', header: 'Category' }, { key: 'prefix', header: 'Asset ID Format', render: c => <span className="mono">GW-AST-{c.code}-0001</span> }, { key: 'count', header: 'Assets', num: true, render: c => db.assets.filter(a => a.categoryId === c.id).length }]} />
+      </Section>}
+      {tab === 'departments' && <Section title="Departments" compact right={<button className="btn sm primary" onClick={() => setDep({ id: `D-${Date.now().toString(36).toUpperCase()}`, code: '', name: '' })}>Add Department</button>}>
+        <DataTable rows={db.departments} onRowClick={d => setDep({ ...d })} columns={[{ key: 'code', header: 'Code' }, { key: 'name', header: 'Department' }, { key: 'head', header: 'Department Head', render: d => store.employeeName(d.headEmployeeId) }, { key: 'count', header: 'Assets', num: true, render: d => db.assets.filter(a => a.departmentId === d.id).length }]} />
+      </Section>}
+      {tab === 'locations' && <Section title="Locations" compact right={<button className="btn sm primary" onClick={() => setLoc({ id: `L-${Date.now().toString(36).toUpperCase()}`, code: '', name: '' })}>Add Location</button>}>
+        <DataTable rows={db.locations} onRowClick={l => setLoc({ ...l })} columns={[{ key: 'code', header: 'Code' }, { key: 'name', header: 'Location' }, { key: 'address', header: 'Address' }, { key: 'count', header: 'Assets', num: true, render: l => db.assets.filter(a => a.locationId === l.id).length }]} />
+      </Section>}
+      {tab === 'drive' && (
+        <Section title="Google Drive — attachment storage">
+          <p>When enabled, every uploaded invoice, warranty, asset photograph, quotation, service report, disposal proof and library document is stored in the shared Drive folder, inside a sub-folder named after the Asset ID. The record keeps a link to the Drive file.</p>
+          <div className="form-grid cols-2">
+            <Input label="Drive folder ID" required value={drive.folderId} onChange={e => setDrive({ ...drive, folderId: e.target.value.trim() })} hint={`From the folder URL: drive.google.com/drive/folders/<ID>. Default: "Asset proof" (${DEFAULT_FOLDER_ID})`} />
+            <Input label="Google OAuth Client ID" required value={drive.clientId} onChange={e => setDrive({ ...drive, clientId: e.target.value.trim() })} hint="Ends with .apps.googleusercontent.com — created once in Google Cloud Console (see steps below)" />
+            <label className="checkbox field"><input type="checkbox" checked={drive.enabled} onChange={e => setDrive({ ...drive, enabled: e.target.checked })} /> Enable Google Drive storage for new uploads</label>
+          </div>
+          {driveMsg && <div className={`alert ${driveMsg.ok ? 'success' : 'error'}`} style={{ marginTop: 12 }}>{driveMsg.text}</div>}
+          <div className="btn-row" style={{ marginTop: 12 }}>
+            <button className="btn primary" onClick={() => { setDriveConfig(drive); setDriveMsg({ text: 'Drive settings saved.', ok: true }); }}>Save</button>
+            <button className="btn" disabled={testing || !drive.clientId || !drive.folderId} onClick={async () => {
+              setDriveConfig(drive); setTesting(true); setDriveMsg(null);
+              try { const r = await testDriveConnection(); setDrive(d => ({ ...d, folderName: r.folderName, account: r.account })); setDriveConfig({ ...drive, folderName: r.folderName, account: r.account });
+                setDriveMsg({ text: r.canWrite ? `Connected as ${r.account}. Folder "${r.folderName}" is writable.` : `Connected as ${r.account}, but this account can only VIEW "${r.folderName}". Ask the folder owner (greenwarriorit19@gmail.com) to share it with Editor access, or sign in with the owner account.`, ok: r.canWrite }); }
+              catch (e) { setDriveMsg({ text: e instanceof Error ? e.message : String(e), ok: false }); }
+              finally { setTesting(false); }
+            }}>{testing ? 'Connecting…' : 'Connect & test'}</button>
+            <button className="btn ghost" onClick={() => { signOutDrive(); setDriveMsg({ text: 'Signed out of Google Drive for this session.', ok: true }); }}>Sign out</button>
+            {drive.account && <span className="muted small">Last connected: {drive.account} → {drive.folderName}</span>}
+          </div>
+          <h3 style={{ marginTop: 18 }}>One-time setup (Google Cloud Console)</h3>
+          <ol className="small" style={{ lineHeight: 1.7 }}>
+            <li>Sign in at <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">console.cloud.google.com</a> with the Google account that owns the folder (greenwarriorit19@gmail.com) and create a project, e.g. <i>GW Asset Management</i>.</li>
+            <li><b>APIs &amp; Services → Library</b> → enable <b>Google Drive API</b>.</li>
+            <li><b>APIs &amp; Services → OAuth consent screen</b> → External → app name "Green Warrior Asset Management" → add the scope <code>…/auth/drive</code> → add the Google accounts of staff who will upload as <b>Test users</b> (or publish the app).</li>
+            <li><b>Credentials → Create credentials → OAuth client ID</b> → type <b>Web application</b> → Authorized JavaScript origins: <code>{window.location.origin}</code> (add the production URL later) → Create.</li>
+            <li>Copy the <b>Client ID</b> into the field above, tick Enable, Save, then <b>Connect &amp; test</b> — a Google sign-in window opens; choose an account that has Editor access to the folder.</li>
+          </ol>
+        </Section>
+      )}
+      {tab === 'data' && <Section title="Data">
+        <p>This build stores data in the browser (localStorage) so it runs without a server. The system starts <b>empty (live)</b>; the demonstration dataset can be loaded for training and cleared again with <b>Start empty</b>. Use the export below to back up, or reset to the demonstration dataset. The Supabase / PostgreSQL schema is in <code>supabase/schema.sql</code>.</p>
+        <div className="btn-row">
+          <button className="btn" onClick={() => { const a = document.createElement('a'); a.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(store.exportJson()); a.download = `gw-asset-db-${new Date().toISOString().slice(0, 10)}.json`; a.click(); }}>Download JSON backup</button>
+          <button className="btn danger" onClick={() => { if (confirm('Remove ALL records (assets, employees, handovers, history, users except Super Admin) and start with an empty live database? Departments, locations and categories are kept. This cannot be undone.')) store.startEmpty(); }}>Start empty (live)</button>
+          <button className="btn ghost" onClick={() => { if (confirm('Replace ALL current data with the demonstration dataset? This cannot be undone.')) store.loadDemoData(); }}>Load demo data (training)</button>
+        </div>
+      </Section>}
+
+      {emp && <Modal title={emp.name || 'New Employee'} onClose={() => setEmp(null)} footer={<>
+          {db.employees.some(e => e.id === emp.id) && (() => { const blockers = store.employeeDeleteBlockers(emp.id); return (
+            <button className="btn danger" style={{ marginRight: 'auto' }} title={blockers.length ? `Cannot delete: ${blockers.join('; ')}` : 'Permanently delete this employee'} disabled={blockers.length > 0}
+              onClick={() => { const reason = prompt(`Delete employee ${emp.name}? Enter a reason:`); if (reason) { if (run(() => store.deleteEmployee(emp.id, reason), 'Employee deleted.') !== undefined) setEmp(null); } }}>
+              {blockers.length ? 'Delete (has asset history — mark Inactive instead)' : 'Delete Employee'}
+            </button>); })()}
+          <button className="btn ghost" onClick={() => setEmp(null)}>Cancel</button><button className="btn primary" onClick={() => { if (run(() => store.saveEmployee(emp), 'Employee saved.') !== undefined) setEmp(null); }}>Save</button></>}>
+        <div className="form-grid cols-2">
+          <Input label="Employee ID" required value={emp.employeeCode} onChange={e => setEmp({ ...emp, employeeCode: e.target.value })} />
+          <Input label="Employee Name" required value={emp.name} onChange={e => setEmp({ ...emp, name: e.target.value })} />
+          <Input label="Designation" required value={emp.designation} onChange={e => setEmp({ ...emp, designation: e.target.value })} />
+          <Select label="Department" value={emp.departmentId} onChange={e => setEmp({ ...emp, departmentId: e.target.value })} options={db.departments.map(d => ({ value: d.id, label: d.name }))} />
+          <Input label="Date of Joining" type="date" value={emp.dateOfJoining} onChange={e => setEmp({ ...emp, dateOfJoining: e.target.value })} />
+          <Select label="Work Location" value={emp.workLocationId} onChange={e => setEmp({ ...emp, workLocationId: e.target.value })} options={db.locations.map(l => ({ value: l.id, label: l.name }))} />
+          <Input label="Mobile Number" value={emp.mobile} onChange={e => setEmp({ ...emp, mobile: e.target.value })} />
+          <Input label="Email Address" type="email" value={emp.email} onChange={e => setEmp({ ...emp, email: e.target.value })} />
+          <label className="checkbox field"><input type="checkbox" checked={emp.active} onChange={e => setEmp({ ...emp, active: e.target.checked })} /> Active (inactive employees cannot receive handovers)</label>
+          {db.employees.some(e => e.id === emp.id) && store.employeeDeleteBlockers(emp.id).length > 0 && <div className="alert" style={{ gridColumn: '1 / -1', marginBottom: 0 }}>This employee has asset history ({store.employeeDeleteBlockers(emp.id).join('; ')}). Records are never deleted — untick <b>Active</b> to retire the employee; their history stays on every asset.</div>}
+        </div>
+      </Modal>}
+      {cat && <Modal title={cat.name || 'New Category'} onClose={() => setCat(null)} footer={<>
+          {db.categories.some(x => x.id === cat.id) && (() => { const b = store.categoryDeleteBlockers(cat.id); return <button className="btn danger" style={{ marginRight: 'auto' }} disabled={b.length > 0} title={b.length ? `Cannot delete: ${b.join('; ')}` : 'Delete'} onClick={() => { const reason = prompt(`Delete category ${cat.name}? Enter a reason:`); if (reason && run(() => store.deleteCategory(cat.id, reason), 'Category deleted.') !== undefined) setCat(null); }}>{b.length ? `Delete (in use: ${b.join('; ')})` : 'Delete Category'}</button>; })()}
+          <button className="btn ghost" onClick={() => setCat(null)}>Cancel</button><button className="btn primary" onClick={() => { if (run(() => store.saveCategory({ ...cat, code: cat.code.toUpperCase() }), 'Category saved.') !== undefined) setCat(null); }}>Save</button></>}>
+        <div className="form-grid cols-2">
+          <Input label="Code (3–4 letters, used in Asset ID)" required maxLength={4} value={cat.code} onChange={e => setCat({ ...cat, code: e.target.value.toUpperCase() })} hint={`GW-AST-${cat.code || 'XXX'}-0001`} />
+          <Input label="Category Name" required value={cat.name} onChange={e => setCat({ ...cat, name: e.target.value })} />
+          <Input label="Description" value={cat.description ?? ''} onChange={e => setCat({ ...cat, description: e.target.value })} />
+        </div>
+      </Modal>}
+      {dep && <Modal title={dep.name || 'New Department'} onClose={() => setDep(null)} footer={<>
+          {db.departments.some(x => x.id === dep.id) && (() => { const b = store.departmentDeleteBlockers(dep.id); return <button className="btn danger" style={{ marginRight: 'auto' }} disabled={b.length > 0} title={b.length ? `Cannot delete: ${b.join('; ')}` : 'Delete'} onClick={() => { const reason = prompt(`Delete department ${dep.name}? Enter a reason:`); if (reason && run(() => store.deleteDepartment(dep.id, reason), 'Department deleted.') !== undefined) setDep(null); }}>{b.length ? `Delete (in use: ${b.join('; ')})` : 'Delete Department'}</button>; })()}
+          <button className="btn ghost" onClick={() => setDep(null)}>Cancel</button><button className="btn primary" onClick={() => { if (run(() => store.saveDepartment(dep), 'Department saved.') !== undefined) setDep(null); }}>Save</button></>}>
+        <div className="form-grid cols-2">
+          <Input label="Code" required value={dep.code} onChange={e => setDep({ ...dep, code: e.target.value.toUpperCase() })} />
+          <Input label="Department Name" required value={dep.name} onChange={e => setDep({ ...dep, name: e.target.value })} />
+          <Select label="Department Head" value={dep.headEmployeeId ?? ''} onChange={e => setDep({ ...dep, headEmployeeId: e.target.value || undefined })} placeholder="None" options={db.employees.map(e => ({ value: e.id, label: e.name }))} />
+        </div>
+      </Modal>}
+      {loc && <Modal title={loc.name || 'New Location'} onClose={() => setLoc(null)} footer={<>
+          {db.locations.some(x => x.id === loc.id) && (() => { const b = store.locationDeleteBlockers(loc.id); return <button className="btn danger" style={{ marginRight: 'auto' }} disabled={b.length > 0} title={b.length ? `Cannot delete: ${b.join('; ')}` : 'Delete'} onClick={() => { const reason = prompt(`Delete location ${loc.name}? Enter a reason:`); if (reason && run(() => store.deleteLocation(loc.id, reason), 'Location deleted.') !== undefined) setLoc(null); }}>{b.length ? `Delete (in use: ${b.join('; ')})` : 'Delete Location'}</button>; })()}
+          <button className="btn ghost" onClick={() => setLoc(null)}>Cancel</button><button className="btn primary" onClick={() => { if (run(() => store.saveLocation(loc), 'Location saved.') !== undefined) setLoc(null); }}>Save</button></>}>
+        <div className="form-grid cols-2">
+          <Input label="Code" required value={loc.code} onChange={e => setLoc({ ...loc, code: e.target.value.toUpperCase() })} />
+          <Input label="Location Name" required value={loc.name} onChange={e => setLoc({ ...loc, name: e.target.value })} />
+          <Input label="Address" span={2} value={loc.address ?? ''} onChange={e => setLoc({ ...loc, address: e.target.value })} />
+        </div>
+      </Modal>}
+    </>
+  );
+}
