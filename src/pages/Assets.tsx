@@ -259,6 +259,7 @@ function AssetForm({ asset, onSaved, onClose }: { asset?: Asset; onSaved: (id: s
           <DateInput label="Warranty Expiry Date" value={f.warrantyExpiry ?? ''} onChange={e => set('warrantyExpiry', e.target.value)} />
         </div>
       </Section>
+      {asset && (
       <Section title="Allocation">
         <div className="form-grid">
           <ReadOnly label="Current Status" value={asset ? asset.status : 'Available (on registration)'} />
@@ -269,6 +270,8 @@ function AssetForm({ asset, onSaved, onClose }: { asset?: Asset; onSaved: (id: s
           <ReadOnly label="Employee ID" value={asset ? store.employee(asset.custodianEmployeeId)?.employeeCode ?? '—' : '—'} />
         </div>
       </Section>
+      )}
+      {!asset && <div className="rule-note">New assets are registered as <b>Available</b> in condition <b>New</b>; department, location and custodian are set when the asset is assigned to an employee.</div>}
       <Section title="Specification, Accessories & Attachments">
         <div className="form-grid">
           <TextArea label="Configuration / Technical Specification" span={3} value={f.specification ?? ''} onChange={e => set('specification', e.target.value)} />

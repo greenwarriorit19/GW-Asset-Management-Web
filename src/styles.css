@@ -112,7 +112,7 @@ table.matrix td { padding: 5px 10px; }
 .ss .ss-caret { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); color: var(--grey-500); pointer-events: none; font-size: 12px; }
 .ss .ss-clear { position: absolute; right: 24px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--grey-500); cursor: pointer; font-size: 15px; line-height: 1; padding: 2px 4px; }
 .ss .ss-clear:hover { color: var(--danger); }
-.ss .ss-hidden { position: absolute; opacity: 0; width: 1px; height: 1px; left: 8px; bottom: 0; pointer-events: none; }
+.ss-hidden { position: absolute; opacity: 0; width: 1px; height: 1px; left: 8px; bottom: 0; pointer-events: none; }
 .ss .ss-list { position: absolute; z-index: 60; left: 0; right: 0; top: 100%; margin: 0; padding: 0; list-style: none; background: var(--white); border: 1px solid var(--navy); max-height: 240px; overflow-y: auto; box-shadow: 0 2px 6px rgba(11,31,58,0.12); min-width: 100%; }
 .ss .ss-opt { padding: 7px 10px; font-size: 12.5px; cursor: pointer; border-bottom: 1px solid var(--grey-100); white-space: normal; }
 .ss .ss-opt.active { background: var(--navy-100); }
