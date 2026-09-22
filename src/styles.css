@@ -256,11 +256,13 @@ table.data .empty { text-align: center; color: var(--grey-500); padding: 24px; }
 .a4 table.list tr.sub td { color: var(--grey-900); background: var(--grey-50); font-size: 10px; }
 .a4 table.list tr.sub td:first-child { text-align: right; padding-right: 8px; }
 .a4 .ack { border: 1px solid var(--navy); padding: 8px 10px; margin-top: 10px; font-size: 10.5px; font-style: italic; }
-.a4 .signatures { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 34px; }
+.a4 .signatures { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 30px; }
 .a4 .signatures.cols-3 { grid-template-columns: repeat(3, 1fr); }
-.a4 .sig { border-top: 1px solid var(--charcoal); padding-top: 4px; font-size: 10px; min-height: 42px; }
+.a4 .sig { font-size: 10px; }
 .a4 .sig .name { font-weight: 600; color: var(--navy); }
-.a4 .sig .val { font-family: 'Segoe Script', 'Brush Script MT', cursive; font-size: 13px; color: var(--navy); min-height: 18px; }
+ /* A clear band to sign by hand, closed by the signature rule; the label sits underneath it. */
+.a4 .sig .val { font-family: 'Segoe Script', 'Brush Script MT', cursive; font-size: 13px; color: var(--navy);
+  min-height: 46px; display: flex; align-items: flex-end; padding-bottom: 3px; margin-bottom: 4px; border-bottom: 1px solid var(--charcoal); }
 .a4 .doc-footer { position: absolute; left: 16mm; right: 16mm; bottom: 8mm; border-top: 1px solid var(--grey-300); padding-top: 4px; font-size: 9px; color: var(--grey-700); display: flex; justify-content: space-between; }
 .a4 .qr { text-align: right; } .a4 .qr img { width: 72px; height: 72px; }
 .a4 .blank { display: inline-block; min-width: 120px; border-bottom: 1px dotted var(--grey-500); }

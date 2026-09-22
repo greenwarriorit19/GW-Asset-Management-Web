@@ -101,7 +101,7 @@ export function A4Document({ title, reference, date, qrText, children, signature
           </div>
         )}
         <div className="doc-footer">
-          <span>{COMPANY} — Controlled document; retain per records policy.</span>
+          <span>{COMPANY}</span>
           <span>{reference} · Generated {new Date().toLocaleString('en-IN')}</span>
         </div>
       </div>
