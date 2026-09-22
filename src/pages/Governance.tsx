@@ -7,6 +7,7 @@ import { PageHead, Section, Status, DataTable, Input, Select, SearchSelect, File
 import { getDriveConfig, setDriveConfig, testDriveConnection, signOutDrive, DEFAULT_FOLDER_ID, type DriveConfig } from '../lib/drive';
 import { exportRows } from '../lib/export';
 import { askReason, askConfirm } from '../components/Dialog';
+import { loadSampleData } from '../data/sample';
 
 // ---------- 13. Audit Log ----------
 export function AuditLogPage() {
@@ -311,6 +312,7 @@ export function SettingsPage() {
       {tab === 'data' && <Section title="Data">
         {store.mode === 'supabase' ? <p>Data is stored in the shared <b>Supabase</b> database; every user sees the same live records and Supabase keeps the backups. The JSON download below is an extra offline copy.</p> : <p>This build stores data in the browser (localStorage) so it runs without a server. Take a <b>JSON backup</b> regularly and keep it outside this PC; <b>Restore</b> loads a backup into this browser.</p>}
         <div className="btn-row">
+          <button className="btn" onClick={async () => { if (await askConfirm({ title: 'Load sample data', message: 'Adds clearly-labelled test records (4 employees, 10 assets, assignments, a return, a repair, an incident and a retirement) through the normal workflows so every form can be tried. In the shared database they stay in the permanent history like any other record.', confirmLabel: 'Load sample data' })) run(() => loadSampleData(store), 'Sample data loaded.'); }}>Load sample data (testing)</button>
           <button className="btn" onClick={() => { const a = document.createElement('a'); a.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(store.exportJson()); a.download = `gw-asset-db-${new Date().toISOString().slice(0, 10)}.json`; a.click(); }}>Download JSON backup</button>
           {store.mode === 'local' && <><label className="btn" style={{ display: 'inline-block' }}>Restore from JSON backup<input type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={async e => { const f = e.target.files?.[0]; if (!f) return; const ok = await askConfirm({ title: 'Restore backup', message: `Replace ALL current data with the contents of ${f.name}? This cannot be undone.`, confirmLabel: 'Restore', danger: true }); e.target.value = ''; if (!ok) return; const txt = await f.text(); run(() => store.importDatabase(txt), 'Backup restored.'); }} /></label>
           <button className="btn danger" onClick={async () => { if (await askConfirm({ title: 'Reset to empty database', message: 'Removes ALL records (assets, employees, handovers, history, users except Super Admin). Departments, locations and categories are kept. This cannot be undone.', confirmLabel: 'Reset database', danger: true })) store.startEmpty(); }}>Reset to empty database</button></>}

@@ -537,3 +537,28 @@ describe('Accessory serialization', () => {
     expect(parseAccessories(str)).toEqual([{ name: 'Charger', model: 'Moto 33W', qty: 1 }, { name: 'Back case', model: '', qty: 2 }]);
   });
 });
+
+describe('Sample data', () => {
+  it('loads a coherent test set through the normal workflows, twice without conflicts', async () => {
+    const { loadSampleData } = await import('../src/data/sample');
+    s.switchUser('U-SA'); s.startEmpty();
+    const msg = loadSampleData(s);
+    expect(msg).toMatch(/4 employees, 10 assets/);
+    const db = s.getSnapshot();
+    expect(db.employees.length).toBe(4); expect(db.assets.length).toBe(10);
+    expect(db.assets.filter(a => a.status === 'Assigned').length).toBe(3);
+    expect(db.assets.filter(a => a.status === 'Reserved').length).toBe(2);
+    expect(db.assets.filter(a => a.status === 'Under Inspection').length).toBe(1);
+    expect(db.assets.filter(a => a.status === 'Under Repair').length).toBe(1);
+    expect(db.assets.filter(a => a.status === 'Damaged').length).toBe(1);
+    expect(db.handovers.filter(h => h.status === 'Awaiting Acknowledgement').length).toBe(1);
+    expect(db.disposals.length).toBe(1);
+    expect(db.transactions.every(t => t.reason && t.performedByUserId)).toBe(true);
+    await new Promise(r => setTimeout(r, 2));   // different tag → unique serials
+    loadSampleData(s);
+    expect(s.getSnapshot().assets.length).toBe(20);
+    s.saveUser({ id: 'U-TMP-AA', name: 'Admin', email: 'aa@gw.in', role: 'asset_admin', active: true });
+    s.switchUser('U-TMP-AA');
+    expect(() => loadSampleData(s)).toThrow(/permit/);
+  });
+});
