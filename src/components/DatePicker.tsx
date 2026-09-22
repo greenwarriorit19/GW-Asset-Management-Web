@@ -30,7 +30,7 @@ export function DatePicker({ value, onChange, required, disabled, placeholder = 
   useEffect(() => { if (open) setView({ y: sel?.y ?? today.getFullYear(), m: sel?.m ?? today.getMonth() }); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e: MouseEvent) => { if (!wrap.current?.contains(e.target as Node)) setOpen(false); };
+    const onDoc = (e: MouseEvent) => { const t = e.target as Node; if (!wrap.current?.contains(t) && !(t instanceof HTMLOptionElement)) setOpen(false); };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('mousedown', onDoc); document.addEventListener('keydown', onKey);
     return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
@@ -68,7 +68,8 @@ export function DatePicker({ value, onChange, required, disabled, placeholder = 
       {value && !disabled && <button type="button" className="dp-clear" tabIndex={-1} aria-label="Clear" onMouseDown={e => e.preventDefault()} onClick={() => onChange({ target: { value: '' } })}>×</button>}
       {required && <input tabIndex={-1} aria-hidden required value={value} onChange={() => undefined} className="ss-hidden" onInvalid={e => { e.preventDefault(); setOpen(true); wrap.current?.classList.add('invalid'); }} />}
       {open && !disabled && (
-        <div className="dp-pop" onMouseDown={e => e.preventDefault()}>
+        // preventDefault keeps the input focused while clicking days, but must NOT block the month / year selects
+        <div className="dp-pop" onMouseDown={e => { if (!(e.target as HTMLElement).closest('select')) e.preventDefault(); }}>
           <div className="dp-head">
             <button type="button" className="dp-nav" onClick={() => shift(-1)} aria-label="Previous month">‹</button>
             <select value={view.m} onChange={e => setView({ ...view, m: +e.target.value })}>{MONTHS.map((n, i) => <option key={n} value={i}>{n}</option>)}</select>
