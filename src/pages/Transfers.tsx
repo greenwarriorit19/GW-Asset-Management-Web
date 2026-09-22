@@ -49,7 +49,7 @@ export function Transfers() {
       {store.can('transfer.request') && (
         <form onSubmit={submit}>
           <Section title="Request Transfer">
-            <div className="rule-note">Transfer flow: request → Department Head approval → Asset Administrator completes (releases current custodian, records condition) → new custodian signs a fresh handover. Both custodians remain in the transaction history.</div>
+            <div className="rule-note">Transfer flow: request → Department Head approval → Asset Administrator completes (releases current custodian, records condition) → new custodian signs a fresh assignment. Both custodians remain in the transaction history.</div>
             <div className="form-grid cols-4">
               <Select label="Asset" required span={2} value={assetId} onChange={e => { setAssetId(e.target.value); const a = store.asset(e.target.value); if (a) { setCond(a.condition); setToDept(a.departmentId); setToLoc(a.locationId); } }} placeholder="Select asset…" options={candidates.map(a => ({ value: a.id, label: `${a.id} — ${a.name} · ${a.status}${a.custodianEmployeeId ? ' · ' + store.employeeName(a.custodianEmployeeId) : ''}` }))} />
               <ReadOnly label="Current Custodian" value={asset ? store.employeeName(asset.custodianEmployeeId) : ''} />
@@ -71,12 +71,12 @@ export function Transfers() {
           {current.status === 'Awaiting Approval' && store.can('transfer.approve') && <ApprovalBox title="Department Head Approval" onDecide={(ok, c) => run(() => store.approveTransfer(current.id, ok, c), ok ? 'Transfer approved.' : 'Transfer rejected.')} />}
           {current.status === 'Approved' && store.can('transfer.complete') && (
             <Section title="Complete Transfer">
-              <p className="small">Completing releases {store.employeeName(current.fromEmployeeId)} from custody{current.toEmployeeId ? ` and generates a fresh handover for ${store.employeeName(current.toEmployeeId)} to acknowledge` : ' and returns the asset to the department pool as Available'}.</p>
+              <p className="small">Completing releases {store.employeeName(current.fromEmployeeId)} from custody{current.toEmployeeId ? ` and generates a fresh assignment for ${store.employeeName(current.toEmployeeId)} to acknowledge` : ' and returns the asset to the department pool as Available'}.</p>
               <Input label="Completion remarks / reason" required value={completeReason} onChange={e => setCompleteReason(e.target.value)} />
               <div className="btn-row end" style={{ marginTop: 10 }}><button className="btn primary" disabled={completeReason.trim().length < 3} onClick={() => { const ho = run(() => store.completeTransfer(current.id, completeReason), 'Transfer completed.'); if (ho) setCompleteReason(''); }}>Complete Transfer</button></div>
             </Section>
           )}
-          {current.newHandoverId && <div className="alert">New handover <Link to={`/handovers/${current.newHandoverId}`}>{current.newHandoverId}</Link> generated for the receiving custodian.</div>}
+          {current.newHandoverId && <div className="alert">New assignment <Link to={`/handovers/${current.newHandoverId}`}>{current.newHandoverId}</Link> generated for the receiving custodian.</div>}
           <TransferDoc transfer={current} />
         </Modal>
       )}

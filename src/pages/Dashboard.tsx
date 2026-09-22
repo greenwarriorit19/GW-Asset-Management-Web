@@ -52,7 +52,7 @@ export function Dashboard() {
         <div className="metric"><div className="label">Disposed</div><div className="value">{m.disposed}</div><div className="sub">History retained</div></div>
         <div className="metric"><div className="label">Total Purchase Value</div><div className="value" style={{ fontSize: 18 }}>{fmtMoney(m.totalValue)}</div><div className="sub">Excluding disposed</div></div>
         <div className="metric warn"><div className="label">Warranty Expiring</div><div className="value">{m.warrantyExpiring}</div><div className="sub">Within 30 days</div></div>
-        <div className="metric"><div className="label">Awaiting Action</div><div className="value">{db.handovers.filter(h => ['Awaiting Approval', 'Awaiting Acknowledgement'].includes(h.status)).length + db.transfers.filter(t => ['Awaiting Approval', 'Approved'].includes(t.status)).length + db.returns.filter(r => !r.inspected).length + db.incidents.filter(i => i.status !== 'Closed').length}</div><div className="sub">Handovers, transfers, returns, incidents</div></div>
+        <div className="metric"><div className="label">Awaiting Action</div><div className="value">{db.handovers.filter(h => ['Awaiting Approval', 'Awaiting Acknowledgement'].includes(h.status)).length + db.transfers.filter(t => ['Awaiting Approval', 'Approved'].includes(t.status)).length + db.returns.filter(r => !r.inspected).length + db.incidents.filter(i => i.status !== 'Closed').length}</div><div className="sub">Assignments, transfers, returns, incidents</div></div>
       </div>
 
       <div className="grid cols-3">

@@ -3,7 +3,7 @@ import QRCode from 'qrcode';
 import { fmtDate } from './ui';
 
 export const COMPANY = 'Green Warrior Solid Waste Management';
-export const COMPANY_SUB = 'Asset Management & Employee Handover System';
+export const COMPANY_SUB = 'Asset Management System';
 
 /** Exports a DOM element as PDF (A4) or PNG using html2canvas + jsPDF, loaded on demand. */
 export async function exportElement(el: HTMLElement, filename: string, kind: 'pdf' | 'png') {

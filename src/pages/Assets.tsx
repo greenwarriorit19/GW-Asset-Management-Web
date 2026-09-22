@@ -82,7 +82,7 @@ export function AssetDetail() {
       <PageHead crumbs={`Assets / ${store.catName(a.categoryId)}`} title={`${a.id} — ${a.name}`} actions={<>
         <Link className="btn" to={`/track?asset=${a.id}`}>Track (full record)</Link>
         {store.can('asset.edit') && <button className="btn" onClick={() => setEdit(true)}>Edit Details</button>}
-        {store.can('handover.create') && a.status === 'Available' && <Link className="btn primary" to={`/handovers/new?asset=${a.id}`}>Issue to Employee</Link>}
+        {store.can('handover.create') && a.status === 'Available' && <Link className="btn primary" to={`/handovers/new?asset=${a.id}`}>Assign to Employee</Link>}
         {store.can('return.create') && a.status === 'Assigned' && <Link className="btn" to={`/returns?asset=${a.id}`}>Record Return</Link>}
         {store.can('transfer.request') && ['Assigned', 'Available'].includes(a.status) && <Link className="btn" to={`/transfers?asset=${a.id}`}>Transfer</Link>}
         {store.can('repair.create') && !['Lost', 'Retired', 'Disposed'].includes(a.status) && !db.repairs.some(r => r.assetId === a.id && r.status !== 'Completed') && <Link className="btn" to={`/repairs?asset=${a.id}`}>Send for Repair</Link>}
@@ -103,7 +103,7 @@ export function AssetDetail() {
             <Section title="Current State">
               <dl className="kv">
                 <dt>Status</dt><dd><Status value={a.status} /> &nbsp; Condition: <b>{a.condition}</b></dd>
-                <dt>Custodian</dt><dd>{a.custodianEmployeeId ? <>{store.employeeName(a.custodianEmployeeId)} ({store.employee(a.custodianEmployeeId)?.employeeCode}) {activeHandover && <> · Handover <Link to={`/handovers/${activeHandover.id}`}>{activeHandover.id}</Link></>}</> : '—'}</dd>
+                <dt>Custodian</dt><dd>{a.custodianEmployeeId ? <>{store.employeeName(a.custodianEmployeeId)} ({store.employee(a.custodianEmployeeId)?.employeeCode}) {activeHandover && <> · Assignment <Link to={`/handovers/${activeHandover.id}`}>{activeHandover.id}</Link></>}</> : '—'}</dd>
                 <dt>Department</dt><dd>{store.deptName(a.departmentId)}</dd>
                 <dt>Location</dt><dd>{store.locName(a.locationId)}</dd>
               </dl>
@@ -265,7 +265,7 @@ function AssetForm({ asset, onSaved, onClose }: { asset?: Asset; onSaved: (id: s
           <Select label="Current Condition" required value={f.condition} onChange={e => set('condition', e.target.value as Condition)} options={CONDITIONS.map(c => ({ value: c, label: c }))} />
           <Select label="Department" required value={f.departmentId} onChange={e => set('departmentId', e.target.value)} options={db.departments.map(d => ({ value: d.id, label: d.name }))} />
           <Select label="Assigned Location" required value={f.locationId} onChange={e => set('locationId', e.target.value)} options={db.locations.map(l => ({ value: l.id, label: l.name }))} />
-          <ReadOnly label="Custodian / Employee" value={asset ? store.employeeName(asset.custodianEmployeeId) : 'None — set via Employee Handover'} />
+          <ReadOnly label="Custodian / Employee" value={asset ? store.employeeName(asset.custodianEmployeeId) : 'None — set via Asset Assigned to Employee'} />
           <ReadOnly label="Employee ID" value={asset ? store.employee(asset.custodianEmployeeId)?.employeeCode ?? '—' : '—'} />
         </div>
       </Section>

@@ -82,7 +82,7 @@ export function DocumentsPage() {
               <Select label="Asset" value={assetId} onChange={e => { setAssetId(e.target.value); if (entityType === 'Asset') setEntityId(e.target.value); }} placeholder="Not asset-specific" options={entityOptions.Asset} />
               <Select label="Linked Record Type" value={entityType} onChange={e => { setEntityType(e.target.value); setEntityId(e.target.value === 'Asset' ? assetId : ''); }} options={Object.keys(entityOptions).map(k => ({ value: k, label: k }))} />
               <Select label="Linked Record" required value={entityId} onChange={e => setEntityId(e.target.value)} placeholder="Select…" options={entityOptions[entityType]} />
-              <Select label="Document Type" value={docType} onChange={e => setDocType(e.target.value)} options={['Invoice', 'Warranty', 'Photograph', 'Purchase Order', 'Quotation', 'Service Report', 'Signed Handover Form', 'Signed Return Form', 'Incident Evidence', 'Police Report', 'Proof of Disposal', 'Data Erasure Certificate', 'Other'].map(t => ({ value: t, label: t }))} />
+              <Select label="Document Type" value={docType} onChange={e => setDocType(e.target.value)} options={['Invoice', 'Warranty', 'Photograph', 'Purchase Order', 'Quotation', 'Service Report', 'Signed Assignment Form', 'Signed Return Form', 'Incident Evidence', 'Police Report', 'Proof of Disposal', 'Data Erasure Certificate', 'Other'].map(t => ({ value: t, label: t }))} />
               <FileInput label="File" required span={2} accept=".pdf,image/*,.doc,.docx,.xls,.xlsx" tag={assetId || entityId || undefined} kind={docType} onChange={setAtt} />
               <Input label="Remarks" span={2} value={remarks} onChange={e => setRemarks(e.target.value)} />
             </div>

@@ -88,7 +88,7 @@ export function Tracker() {
                 </Section>
               </div>
 
-              <Section title={`Handovers / Assignments (${handovers.length})`} compact>
+              <Section title={`Assignments to Employees (${handovers.length})`} compact>
                 <table className="data"><thead><tr><th>Reference</th><th>Date</th><th>Employee</th><th>Purpose</th><th>Condition</th><th>Approval</th><th>Acknowledged</th><th>Status</th></tr></thead>
                   <tbody>{handovers.length === 0 && <tr><td className="empty" colSpan={8}>No handovers.</td></tr>}
                     {handovers.map(h => { const it = h.items.find(i => i.assetId === a.id)!; return <tr key={h.id} className="clickable" onClick={() => nav(`/handovers/${h.id}`)}><td className="mono">{h.id}</td><td>{fmtDate(h.date)}</td><td>{store.employeeName(h.employeeId)} <span className="muted small">{store.employee(h.employeeId)?.employeeCode}</span></td><td>{h.purpose}</td><td>{it.condition}</td><td><Status value={h.approval} /> {h.approvedByUserId && <span className="muted small">{store.userName(h.approvedByUserId)}</span>}</td><td>{h.acknowledged ? `${h.employeeSignature} · ${fmtDate(h.acknowledgedAt)}` : '—'}</td><td><Status value={h.status} /></td></tr>; })}

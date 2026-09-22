@@ -107,7 +107,7 @@ export function HandoverDoc({ handover }: { handover: Handover }) {
   const h = handover;
   const e = store.employee(h.employeeId);
   return (
-    <A4Document title="Employee Asset Handover Form" reference={h.id} date={h.date} qrText={`${window.location.origin}${window.location.pathname}#/handovers/${h.id}`}
+    <A4Document title="Asset Assignment to Employee Form" reference={h.id} date={h.date} qrText={`${window.location.origin}${window.location.pathname}#/handovers/${h.id}`}
       acknowledgement={ACK}
       signatures={[
         { label: 'Employee Signature', value: h.employeeSignature, date: h.acknowledgedAt },
@@ -118,10 +118,10 @@ export function HandoverDoc({ handover }: { handover: Handover }) {
       <EmployeeBlock e={e} />
       <h4>Handover Details</h4>
       <Fields rows={[
-        ['Handover Reference No', h.id], ['Handover Date', fmtDate(h.date)],
+        ['Assignment Reference No', h.id], ['Assignment Date', fmtDate(h.date)],
         ['Approved By', h.approvedByUserId ? `${personWithTitle(store, h.approvedByUserId)}${h.approvedAt ? ` (${fmtDate(h.approvedAt)})` : ''}` : h.approval === 'Rejected' ? 'Rejected' : 'Pending approval'], ['Approval Status', h.approval],
       ]} />
-      <h4>Assets Issued</h4>
+      <h4>Assets Assigned</h4>
       <AssetItemsTable rows={h.items} />
     </A4Document>
   );
@@ -142,7 +142,7 @@ export function ReturnDoc({ ret }: { ret: AssetReturn }) {
       <EmployeeBlock e={store.employee(ret.employeeId)} title="Returning Employee" />
       <h4>Return Details</h4>
       <Fields rows={[
-        ['Return Reference No', ret.id], ['Return Date', fmtDate(ret.date)], ['Original Handover Ref', ret.handoverId], ['Received By', personWithTitle(store, ret.receivedByUserId)],
+        ['Return Reference No', ret.id], ['Return Date', fmtDate(ret.date)], ['Original Assignment Ref', ret.handoverId], ['Received By', personWithTitle(store, ret.receivedByUserId)],
         ['Condition Reported', ret.conditionReported], ['Employee Remarks', ret.employeeRemarks],
       ]} />
       <h4>Assets Returned</h4>
@@ -179,7 +179,7 @@ export function TransferDoc({ transfer }: { transfer: Transfer }) {
       <h4>Transfer Details</h4>
       <Fields rows={[
         ['Transfer Reference No', t.id], ['Transfer Date', fmtDate(t.date)], ['Requested By', personWithTitle(store, t.requestedByUserId)], ['Condition at Transfer', t.conditionAtTransfer],
-        ['Approved By', t.approvedByUserId ? `${personWithTitle(store, t.approvedByUserId)}${t.approvedAt ? ` (${fmtDate(t.approvedAt)})` : ''}` : 'Pending approval'], ['Approval', t.approval], ['New Handover Ref', t.newHandoverId], ['Completed On', t.completedAt ? fmtDateTime(t.completedAt) : ''],
+        ['Approved By', t.approvedByUserId ? `${personWithTitle(store, t.approvedByUserId)}${t.approvedAt ? ` (${fmtDate(t.approvedAt)})` : ''}` : 'Pending approval'], ['Approval', t.approval], ['New Assignment Ref', t.newHandoverId], ['Completed On', t.completedAt ? fmtDateTime(t.completedAt) : ''],
       ]} />
       <Fields cols={1} rows={[['Reason for Transfer', t.reason], ['Approver Comments', t.approvalComments]]} />
     </A4Document>

@@ -22,7 +22,7 @@ export function Login() {
   return (
     <div className="login-wrap">
       <form className="login" onSubmit={submit}>
-        <div className="login-brand">{COMPANY}<small>Asset Management &amp; Employee Handover System</small></div>
+        <div className="login-brand">{COMPANY}<small>Asset Management System</small></div>
         <h2>Sign in</h2>
         {session.error && <div className="alert error">{session.error}</div>}
         {info && <div className="alert">{info}</div>}
