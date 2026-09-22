@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { SearchSelect } from './SearchSelect';
+import { Loader } from './Loader';
 import { useStore } from '../data/context';
 import type { Permission } from '../data/store';
 
@@ -51,6 +52,7 @@ export function Layout() {
         <div className="brand">Green Warrior<small>Asset Management System</small></div>
         <div className="spacer" />
         <div className="user">
+          {session.mode === 'supabase' && session.sync.state === 'saving' && <Loader inline />}
           {session.mode === 'supabase' && <span className={`sync sync-${session.sync.state}`} title={session.sync.message ?? ''}>{{ idle: 'Live', saving: 'Saving…', saved: 'Saved', error: 'Not saved' }[session.sync.state]}</span>}
           <span>{u.name} · {store.roleName(u.role)}</span>
           {session.mode === 'local'

@@ -406,3 +406,30 @@ table.data tr:hover td { background: rgba(255,255,255,0.55); }
 .a4 .doc-header { border-bottom-color: #020202; }
 .a4 h4 { background: #F2EDEB; border-top-color: #020202; }
 @media print { body { background: #fff; } .a4 { box-shadow: none; } }
+
+/* ---------- Loader (bouncing dots) ---------- */
+.loader { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 12px; }
+.loader.inline { display: inline-flex; flex-direction: row; gap: 10px; padding: 0 6px; vertical-align: middle; }
+.loader-label { font-size: 13px; color: var(--grey-700); letter-spacing: 0.02em; }
+.loading-card { background: rgba(255,255,255,0.55); backdrop-filter: blur(22px) saturate(150%); -webkit-backdrop-filter: blur(22px) saturate(150%); border: 1px solid rgba(255,255,255,0.8); border-radius: var(--radius); box-shadow: 0 24px 60px rgba(2,2,2,0.18); padding: 36px 48px; display: flex; flex-direction: column; align-items: center; gap: 18px; }
+.typing-indicator { width: 60px; height: 34px; position: relative; z-index: 4; }
+.typing-circle { width: 8px; height: 8px; position: absolute; border-radius: 50%; background-color: var(--navy); left: 15%; transform-origin: 50%; animation: typing-circle 0.5s alternate infinite ease; }
+@keyframes typing-circle {
+  0% { top: 20px; height: 5px; border-radius: 50px 50px 25px 25px; transform: scaleX(1.7); }
+  40% { height: 8px; border-radius: 50%; transform: scaleX(1); }
+  100% { top: 0%; }
+}
+.typing-circle:nth-child(2) { left: 45%; animation-delay: 0.2s; }
+.typing-circle:nth-child(3) { left: auto; right: 15%; animation-delay: 0.3s; }
+.typing-shadow { width: 5px; height: 4px; border-radius: 50%; background-color: rgba(2,2,2,0.2); position: absolute; top: 30px; transform-origin: 50%; z-index: 3; left: 15%; filter: blur(1px); animation: typing-shadow 0.5s alternate infinite ease; }
+@keyframes typing-shadow {
+  0% { transform: scaleX(1.5); }
+  40% { transform: scaleX(1); opacity: 0.7; }
+  100% { transform: scaleX(0.2); opacity: 0.4; }
+}
+.typing-shadow:nth-child(4) { left: 45%; animation-delay: 0.2s; }
+.typing-shadow:nth-child(5) { left: auto; right: 15%; animation-delay: 0.3s; }
+.topbar .loader.inline .typing-circle { background: #fff; } .topbar .loader.inline .typing-shadow { background: rgba(255,255,255,0.35); }
+.topbar .loader.inline .typing-indicator { transform: scale(0.5); width: 30px; height: 18px; margin: 0 -6px; }
+.btn .loader.inline .typing-indicator { transform: scale(0.45); width: 28px; height: 16px; margin: -4px -8px; }
+.btn.primary .loader.inline .typing-circle { background: #fff; }

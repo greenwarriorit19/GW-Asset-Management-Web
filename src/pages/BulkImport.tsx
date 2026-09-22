@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/context';
 import { PageHead, Section, Status, Input, useAction, fmtMoney } from '../components/ui';
+import { Loader } from '../components/Loader';
 import { ASSET_COLUMNS, EMPLOYEE_COLUMNS, downloadTemplate, readSheet, validateAssets, validateEmployees, type Parsed, type AssetRow, type EmployeeRow } from '../lib/bulk';
 
 type Kind = 'assets' | 'employees';
@@ -16,16 +17,18 @@ export function BulkImport() {
   const [emps, setEmps] = useState<Parsed<EmployeeRow>[] | null>(null);
   const [reason, setReason] = useState('Bulk registration from Excel');
   const [parseErr, setParseErr] = useState<string | null>(null);
+  const [parsing, setParsing] = useState(false);
   const [done, setDone] = useState<string[] | null>(null);
   const canAssets = store.can('asset.register'), canEmps = store.can('settings.manage');
 
   const parse = async (f: File, k: Kind) => {
-    setParseErr(null); setDone(null); setAssets(null); setEmps(null);
+    setParseErr(null); setDone(null); setAssets(null); setEmps(null); setParsing(true);
     try {
       const { rows } = await readSheet(f, k === 'assets' ? 'Assets' : 'Employees');
       if (!rows.length) { setParseErr('The sheet has no data rows (keep the header row, delete the example row, add your records).'); return; }
       if (k === 'assets') setAssets(validateAssets(rows, db)); else setEmps(validateEmployees(rows, db));
     } catch (e) { setParseErr(e instanceof Error ? e.message : String(e)); }
+    finally { setParsing(false); }
   };
   const rows = kind === 'assets' ? assets : emps;
   const valid = rows?.filter(r => r.errors.length === 0) ?? [];
@@ -67,6 +70,7 @@ export function BulkImport() {
               <input type="file" accept=".xlsx,.xls,.csv" onChange={e => { const f = e.target.files?.[0] ?? null; setFile(f); if (f) parse(f, kind); }} /></div>
             <Input label="Reason (recorded on every imported record)" required value={reason} onChange={e => setReason(e.target.value)} />
           </div>
+          {parsing && <Loader label="Reading and checking the file…" />}
           {parseErr && <div className="alert error" style={{ marginTop: 10 }}>{parseErr}</div>}
           {rows && (
             <div className="btn-row" style={{ marginTop: 12 }}>
@@ -82,13 +86,13 @@ export function BulkImport() {
           <div className="table-wrap"><table className="data">
             {kind === 'assets' ? (
               <>
-                <thead><tr><th>Row</th><th>Status</th><th>Asset</th><th>Category</th><th>Serial / IMEI / SIM</th><th>Invoice</th><th>Cost</th><th>Department / Location</th><th>Condition</th><th>Errors</th></tr></thead>
+                <thead><tr><th>Row</th><th>Status</th><th>Asset</th><th>Category</th><th>Serial / IMEI / SIM</th><th>Invoice</th><th>Cost</th><th>Errors</th></tr></thead>
                 <tbody>{(rows as Parsed<AssetRow>[]).map(r => (
                   <tr key={r.line} style={r.errors.length ? { background: 'var(--danger-bg)' } : undefined}>
                     <td>{r.line}</td><td><Status value={r.errors.length ? 'Error' : 'Valid'} /></td>
                     <td>{r.data.name}<div className="muted small">{r.data.manufacturer} {r.data.model}</div></td><td>{store.catName(r.data.categoryId) === '—' ? <span className="muted">?</span> : store.catName(r.data.categoryId)}</td>
                     <td className="mono">{[r.data.serialNumber, r.data.imei, r.data.sim].filter(Boolean).join(' / ')}</td><td>{r.data.invoiceNumber || <span className="muted">—</span>}</td>
-                    <td className="num">{fmtMoney(r.data.purchaseCost)}</td><td>{store.deptName(r.data.departmentId)} / {store.locName(r.data.locationId)}</td><td>{r.data.condition}</td>
+                    <td className="num">{fmtMoney(r.data.purchaseCost)}</td>
                     <td style={{ color: 'var(--danger)' }}>{r.errors.join('; ')}</td>
                   </tr>))}</tbody>
               </>

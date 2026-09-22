@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useStore } from '../data/context';
 import { Input } from '../components/ui';
 import { COMPANY } from '../components/A4Document';
+import { Loader } from '../components/Loader';
 
 /** Sign-in screen for the shared (Supabase) database. */
 export function Login() {
@@ -32,7 +33,7 @@ export function Login() {
         </div>
         <div className="btn-row" style={{ marginTop: 14, justifyContent: 'space-between' }}>
           <button type="button" className="btn ghost" onClick={forgot} disabled={busy}>Forgot password</button>
-          <button type="submit" className="btn primary" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+          <button type="submit" className="btn primary" disabled={busy}>{busy ? <Loader inline /> : 'Sign in'}</button>
         </div>
         <p className="muted small" style={{ marginTop: 16 }}>Access is granted by the Super Admin under Users &amp; Permissions. Contact IT if you cannot sign in.</p>
       </form>

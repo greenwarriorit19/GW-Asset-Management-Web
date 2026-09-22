@@ -18,6 +18,7 @@ import { AuditLogPage, DocumentsPage, UsersPage, SettingsPage } from './pages/Go
 import { Login } from './pages/Login';
 import { BulkImport } from './pages/BulkImport';
 import { DialogHost } from './components/Dialog';
+import { LoadingScreen } from './components/Loader';
 
 /** Route guard: the menu hides pages a role cannot use; this stops them being opened by URL as well. */
 function Guard({ perm, children }: { perm: Permission | Permission[]; children: React.ReactElement }) {
@@ -36,7 +37,7 @@ function ScrollToTop() {
 /** Shows the loading / sign-in screens until the shared database is ready. */
 function Gate({ children }: { children: React.ReactElement }) {
   const { session } = useStore();
-  if (session.phase === 'loading') return <div className="login-wrap"><div className="login"><h2>Connecting to the database…</h2><p className="muted small">Loading asset records from Supabase.</p></div></div>;
+  if (session.phase === 'loading') return <LoadingScreen label="Loading asset records…" />;
   if (session.phase === 'login') return <Login />;
   return children;
 }

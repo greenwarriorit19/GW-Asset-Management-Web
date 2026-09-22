@@ -472,7 +472,7 @@ describe('Bulk import (Excel)', () => {
   it('validates rows against the register and within the file, resolving codes or names', async () => {
     const { validateAssets, validateEmployees } = await import('../src/lib/bulk');
     const db = s.getSnapshot();
-    const full = { 'Asset Name': 'Phone A', Category: 'MOB', Manufacturer: 'Samsung', Model: 'A16', 'Serial Number': 'BULK-1', 'IMEI Number': '123', 'SIM Number': '456', 'Purchase Date': '2026-09-01', 'Purchase Cost': '15,000', 'Warranty Start Date': '2026-09-01', 'Warranty Expiry Date': '2027-08-31', Condition: 'New', Department: 'Operations', 'Assigned Location': 'PM', Specification: '8 GB', Accessories: 'Charger' };
+    const full = { 'Asset Name': 'Phone A', Category: 'MOB', Manufacturer: 'Samsung', Model: 'A16', 'Serial Number': 'BULK-1', 'IMEI Number': '123', 'SIM Number': '456', 'Purchase Date': '2026-09-01', 'Purchase Cost': '15,000', 'Warranty Start Date': '2026-09-01', 'Warranty Expiry Date': '2027-08-31', Specification: '8 GB', Accessories: 'Charger' };
     const rows = [
       full,
       { ...full, 'Asset Name': 'Phone B', Category: 'Mobile Phone', 'Serial Number': 'r58x3a1b2c01', 'IMEI Number': '124', 'SIM Number': '457' },      // serial exists in register
@@ -483,7 +483,7 @@ describe('Bulk import (Excel)', () => {
     ];
     const v = validateAssets(rows, db);
     expect(v[0].errors).toEqual([]);
-    expect(v[0].data).toMatchObject({ categoryId: 'C-MOB', departmentId: 'D-OPS', locationId: 'L-PM', purchaseCost: 15000, purchaseDate: '2026-09-01', warrantyExpiry: '2027-08-31', supplierName: '' });
+    expect(v[0].data).toMatchObject({ categoryId: 'C-MOB', condition: 'New', purchaseCost: 15000, purchaseDate: '2026-09-01', warrantyExpiry: '2027-08-31', supplierName: '' });
     expect(v[1].errors.join()).toMatch(/Serial R58X3A1B2C01 already exists/);
     expect(v[2].errors.join()).toMatch(/Category "XYZ" not found/); expect(v[2].errors.join()).toMatch(/Serial BULK-1 already exists/);
     expect(v[3].errors.join()).toMatch(/Asset Name is required/); expect(v[3].errors.join()).toMatch(/IMEI Number is required/); expect(v[3].errors.join()).toMatch(/Accessories is required/); expect(v[3].data.purchaseDate).toBe('2026-09-05');
@@ -517,14 +517,14 @@ describe('Bulk import (Excel)', () => {
     const XLSX = await import('xlsx');
     const { readSheet, validateAssets, ASSET_COLUMNS } = await import('../src/lib/bulk');
     const headers = ASSET_COLUMNS.map(c => c[1].startsWith('REQUIRED') ? `${c[0]} *` : c[0]);   // as the template writes them
-    const row = ['Excel Phone', 'MOB', 'Samsung', 'A16', 'XL-1', '111', '222', 'Company Owned', 'I', new Date(2026, 8, 1), 12000, '2026-09-01', '2027-08-31', 'Good', 'OPS', 'PM', '8 GB', 'Charger', '', ''];
+    const row = ['Excel Phone', 'MOB', 'Samsung', 'A16', 'XL-1', '111', '222', 'Company Owned', 'I', new Date(2026, 8, 1), 12000, '2026-09-01', '2027-08-31', '8 GB', 'Charger', '', ''];
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([headers, row]), 'Assets');
     const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
     const file = { name: 't.xlsx', arrayBuffer: async () => buf } as unknown as File;
     const { rows } = await readSheet(file, 'Assets');
     const v = validateAssets(rows, s.getSnapshot());
     expect(v).toHaveLength(1); expect(v[0].errors).toEqual([]);
-    expect(v[0].data).toMatchObject({ name: 'Excel Phone', serialNumber: 'XL-1', purchaseDate: '2026-09-01', purchaseCost: 12000, condition: 'Good', accessories: 'Charger' });
+    expect(v[0].data).toMatchObject({ name: 'Excel Phone', serialNumber: 'XL-1', purchaseDate: '2026-09-01', purchaseCost: 12000, condition: 'New', accessories: 'Charger' });
   });
 });
 
