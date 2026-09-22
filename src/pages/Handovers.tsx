@@ -2,9 +2,9 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/context';
 import { CONDITIONS, type Handover, type HandoverItem, type Condition } from '../data/types';
-import { PageHead, Section, Status, DataTable, Input, Select, SearchSelect, TextArea, ReadOnly, Alert, useAction, fmtDate, fmtDateTime, type Column, DateInput } from '../components/ui';
+import { PageHead, Section, Status, DataTable, Input, Select, SearchSelect, TextArea, ReadOnly, Alert, useAction, fmtDate, fmtDateTime, type Column } from '../components/ui';
 import { HandoverDoc, ClearanceDoc } from '../documents';
-import { ApprovalBox } from '../components/ApprovalBox';
+import { askReason } from '../components/Dialog';
 
 const ACK = 'I acknowledge that I have received the company assets listed above in the stated condition. I accept responsibility for their proper use, protection and return in accordance with company policy. I will immediately report any loss, damage or malfunction.';
 
@@ -35,7 +35,7 @@ export function HandoverList() {
       </>} />
       {clearanceEmp && <ClearanceDoc employee={store.employee(clearanceEmp)!} />}
       <div className="toolbar">
-        <SearchSelect className="tb" value={filter} onChange={e => setFilter(e.target.value)} placeholder="All statuses" options={['Awaiting Approval', 'Awaiting Acknowledgement', 'Active', 'Closed', 'Rejected'].map(s => ({ value: s, label: s }))} />
+        <SearchSelect className="tb" value={filter} onChange={e => setFilter(e.target.value)} placeholder="All statuses" options={['Awaiting Acknowledgement', 'Active', 'Closed', 'Rejected'].map(s => ({ value: s === 'Rejected' ? 'Rejected' : s, label: s === 'Rejected' ? 'Cancelled' : s }))} />
         <span className="muted small">{rows.length} assignments</span>
       </div>
       <Section title="Assignment Register" compact><DataTable rows={rows} columns={columns} onRowClick={h => nav(`/handovers/${h.id}`)} /></Section>
@@ -55,7 +55,6 @@ export function HandoverDetail() {
   const emp = store.employee(h.employeeId)!;
   const isRecipient = store.currentUser.employeeId === h.employeeId;
   const canAck = h.status === 'Awaiting Acknowledgement' && (isRecipient || store.can('handover.create'));
-  const canApprove = h.status === 'Awaiting Approval' && store.can('handover.approve') && (store.currentUser.role !== 'dept_head' || store.currentUser.departmentId === emp.departmentId);
 
   return (
     <>
@@ -66,13 +65,16 @@ export function HandoverDetail() {
         <Section title="Workflow">
           <dl className="kv">
             <dt>Created</dt><dd>{fmtDateTime(h.createdAt)} by {store.userName(h.createdByUserId)}</dd>
-            <dt>Approval</dt><dd><Status value={h.approval} /> {h.approvedByUserId && <> {store.userName(h.approvedByUserId)} · {fmtDateTime(h.approvedAt)}{h.approvalComments && ` · “${h.approvalComments}”`}</>}</dd>
+            <dt>Submitted by</dt><dd>{store.userName(h.approvedByUserId ?? h.createdByUserId)} · {fmtDateTime(h.approvedAt ?? h.createdAt)}{h.approvalComments && ` · “${h.approvalComments}”`}</dd>
             <dt>Acknowledgement</dt><dd>{h.acknowledged ? <>Signed “{h.employeeSignature}” · {fmtDateTime(h.acknowledgedAt)}</> : <Status value="Pending" />}</dd>
             <dt>Authorized Signatory</dt><dd>{store.userName(h.authorizedSignatoryUserId)}</dd>
           </dl>
         </Section>
         <div>
-          {canApprove && <ApprovalBox title="Department Head Approval" onDecide={(ok, c) => run(() => store.approveHandover(h.id, ok, c), ok ? 'Assignment approved. Awaiting employee acknowledgement.' : 'Assignment rejected; assets released.')} />}
+          {h.status === 'Awaiting Acknowledgement' && store.can('handover.create') && (
+            <Section title="Cancel Assignment"><p className="small">Withdraws this assignment before signature and returns the reserved asset(s) to Available.</p>
+              <button className="btn danger" onClick={async () => { const reason = await askReason({ title: `Cancel assignment ${h.id}`, message: 'The reserved assets will become Available again.', confirmLabel: 'Cancel assignment' }); if (reason) run(() => store.cancelHandover(h.id, reason), 'Assignment cancelled; assets released.'); }}>Cancel Assignment</button></Section>
+          )}
           {canAck && (
             <Section title="Employee Acknowledgement (Rule 7)">
               <p className="small" style={{ fontStyle: 'italic' }}>“{ACK}”</p>
@@ -99,9 +101,6 @@ export function HandoverNew() {
   const { run, Messages } = useAction();
   const [employeeId, setEmployeeId] = useState('');
   const [issuedBy, setIssuedBy] = useState(store.currentUser.id);
-  const [expected, setExpected] = useState('');
-  const [purpose, setPurpose] = useState('');
-  const [locationOfUse, setLocationOfUse] = useState('');
   const [reason, setReason] = useState('Asset request approved by department');
   const [items, setItems] = useState<HandoverItem[]>(() => {
     const pre = sp.get('asset'); const a = pre ? store.asset(pre) : undefined;
@@ -115,19 +114,19 @@ export function HandoverNew() {
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const h = run(() => store.createHandover({ employeeId, issuedByUserId: issuedBy, expectedReturnDate: expected || undefined, purpose, locationOfUse, items, reason }));
+    const h = run(() => store.createHandover({ employeeId, issuedByUserId: issuedBy, items, reason }));
     if (h) nav(`/handovers/${h.id}`);
   };
 
   return (
     <>
       <PageHead crumbs="Custody / Asset Assigned to Employee" title="Assign Asset to Employee" actions={<span className="mono muted">{store.nextRef('HO', db.handovers)}</span>} />
-      <div className="rule-note">Only <b>Available</b> assets can be issued (Rule 4). Assets are reserved on submission, released if the Department Head rejects, and become <b>Assigned</b> only after the employee signs the acknowledgement (Rule 7).</div>
+      <div className="rule-note">Only <b>Available</b> assets can be assigned (Rule 4). Submitting reserves the assets; they become <b>Assigned</b> once the employee signs the acknowledgement (Rule 7).</div>
       <form onSubmit={submit}>
         <Messages />
         <Section title="Employee Details">
           <div className="form-grid cols-4">
-            <Select label="Employee" required span={2} value={employeeId} onChange={e => { setEmployeeId(e.target.value); const em = store.employee(e.target.value); if (em) setLocationOfUse(store.locName(em.workLocationId)); }} placeholder="Select employee…" options={db.employees.filter(e => e.active).map(e => ({ value: e.id, label: `${e.name} — ${e.employeeCode} (${store.deptName(e.departmentId)})` }))} />
+            <Select label="Employee" required span={2} value={employeeId} onChange={e => setEmployeeId(e.target.value)} placeholder="Select employee…" options={db.employees.filter(e => e.active).map(e => ({ value: e.id, label: `${e.name} — ${e.employeeCode} (${store.deptName(e.departmentId)})` }))} />
             <ReadOnly label="Employee ID" value={emp?.employeeCode ?? ''} />
             <ReadOnly label="ERP ID" value={emp?.erpId ?? ''} />
             <ReadOnly label="Designation" value={emp?.designation ?? ''} />
@@ -142,9 +141,6 @@ export function HandoverNew() {
             <ReadOnly label="Assignment Reference No" value={store.nextRef('HO', db.handovers)} />
             <ReadOnly label="Assignment Date" value={fmtDate(new Date().toISOString())} />
             <Select label="Issued By" required value={issuedBy} onChange={e => setIssuedBy(e.target.value)} options={db.users.filter(u => ['asset_admin', 'super_admin'].includes(u.role)).map(u => ({ value: u.id, label: u.name }))} />
-            <DateInput label="Expected Return Date" value={expected} onChange={e => setExpected(e.target.value)} hint="Leave blank for permanent issue" />
-            <Input label="Purpose or Project" required span={2} value={purpose} onChange={e => setPurpose(e.target.value)} />
-            <Input label="Location of Use" required span={2} value={locationOfUse} onChange={e => setLocationOfUse(e.target.value)} />
           </div>
         </Section>
         <Section title="Assets to Assign" compact right={<div className="btn-row"><SearchSelect className="tb" style={{ minWidth: 320 }} value={pick} onChange={e => setPick(e.target.value)} placeholder="Add available asset…" options={available.map(a => ({ value: a.id, label: `${a.id} — ${a.name} (${a.serialNumber})` }))} /><button type="button" className="btn sm" disabled={!pick} onClick={add}>Add</button></div>}>
@@ -166,10 +162,9 @@ export function HandoverNew() {
         </Section>
         <Section title="Submission">
           <div className="form-grid">
-            <TextArea label="Reason / request reference" required span={2} value={reason} onChange={e => setReason(e.target.value)} />
-            <ReadOnly label="Approver" value={emp ? `Department Head — ${store.deptName(emp.departmentId)}` : 'Department Head'} />
+            <TextArea label="Reason / request reference" required span="full" value={reason} onChange={e => setReason(e.target.value)} />
           </div>
-          <div className="btn-row end" style={{ marginTop: 12 }}><Link className="btn ghost" to="/handovers">Cancel</Link><button className="btn primary" type="submit" disabled={!employeeId || items.length === 0}>Submit for Approval</button></div>
+          <div className="btn-row end" style={{ marginTop: 12 }}><Link className="btn ghost" to="/handovers">Cancel</Link><button className="btn primary" type="submit" disabled={!employeeId || items.length === 0}>Submit</button></div>
         </Section>
       </form>
     </>

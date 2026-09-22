@@ -19,8 +19,8 @@ const newAsset = (over: Partial<Parameters<Store['registerAsset']>[0]> = {}) => 
 /** Full issue: create handover → dept-head approval → employee acknowledgement. Returns handover id. */
 const issue = (assetId: string, employeeId = 'E-006', head = 'U-DH-IT', ackUser = 'U-EMP2') => {
   asAdmin();
-  const h = s.createHandover({ employeeId, issuedByUserId: 'U-AA', purpose: 'Project work', locationOfUse: 'HO', items: [{ assetId, condition: 'New', quantity: 1, accessories: 'Charger', remarks: '' }], reason: 'Department request approved' });
-  s.switchUser(head); s.approveHandover(h.id, true, 'Approved');
+  const h = s.createHandover({ employeeId, issuedByUserId: 'U-AA', items: [{ assetId, condition: 'New', quantity: 1, accessories: 'Charger', remarks: '' }], reason: 'Department request approved' });
+  void head;
   s.switchUser(ackUser); s.acknowledgeHandover(h.id, s.employeeName(employeeId), 'U-SA');
   asAdmin();
   return h.id;
@@ -88,27 +88,23 @@ describe('Rule 1 & 2 — unique Asset ID, duplicate serial / IMEI / SIM', () => 
 
 describe('Rules 3, 4, 7 — handover', () => {
   it('only Available assets can be issued', () => {
-    expect(() => s.createHandover({ employeeId: 'E-006', issuedByUserId: 'U-AA', purpose: 'p', locationOfUse: 'x', items: [{ assetId: 'GW-AST-MOB-0001', condition: 'Good', quantity: 1, accessories: '', remarks: '' }], reason: 'test req' })).toThrow(/Rule 4/);
+    expect(() => s.createHandover({ employeeId: 'E-006', issuedByUserId: 'U-AA', items: [{ assetId: 'GW-AST-MOB-0001', condition: 'Good', quantity: 1, accessories: '', remarks: '' }], reason: 'test req' })).toThrow(/Rule 4/);
   });
-  it('reserves on submission, blocks a second issue, releases on rejection', () => {
+  it('submitting reserves the assets (no approval step), blocks a second issue, cancelling releases them', () => {
     const a = newAsset();
-    const h = s.createHandover({ employeeId: 'E-006', issuedByUserId: 'U-AA', purpose: 'p', locationOfUse: 'x', items: [{ assetId: a.id, condition: 'New', quantity: 1, accessories: '', remarks: '' }], reason: 'test req' });
+    const h = s.createHandover({ employeeId: 'E-006', issuedByUserId: 'U-AA', items: [{ assetId: a.id, condition: 'New', quantity: 1, accessories: '', remarks: '' }], reason: 'test req' });
+    expect(h.status).toBe('Awaiting Acknowledgement');
+    expect(s.getSnapshot().approvals.some(x => x.entityId === h.id)).toBe(false);
     expect(s.asset(a.id)!.status).toBe('Reserved');
-    expect(() => s.createHandover({ employeeId: 'E-004', issuedByUserId: 'U-AA', purpose: 'p', locationOfUse: 'x', items: [{ assetId: a.id, condition: 'New', quantity: 1, accessories: '', remarks: '' }], reason: 'test req' })).toThrow(/Rule 4/);
-    s.switchUser('U-DH-IT'); s.approveHandover(h.id, false, 'Not required');
+    expect(() => s.createHandover({ employeeId: 'E-004', issuedByUserId: 'U-AA', items: [{ assetId: a.id, condition: 'New', quantity: 1, accessories: '', remarks: '' }], reason: 'test req' })).toThrow(/Rule 4/);
+    s.cancelHandover(h.id, 'Not required');
     expect(s.asset(a.id)!.status).toBe('Available');
     expect(s.getSnapshot().handovers.find(x => x.id === h.id)!.status).toBe('Rejected');
-  });
-  it('department head can only approve own department', () => {
-    const a = newAsset();
-    const h = s.createHandover({ employeeId: 'E-006', issuedByUserId: 'U-AA', purpose: 'p', locationOfUse: 'x', items: [{ assetId: a.id, condition: 'New', quantity: 1, accessories: '', remarks: '' }], reason: 'test req' });
-    s.switchUser('U-DH-OPS');
-    expect(() => s.approveHandover(h.id, true, 'ok')).toThrow(/own department/);
+    expect(() => s.cancelHandover(h.id, 'again')).toThrow(/awaiting acknowledgement/);
   });
   it('asset becomes Assigned only after the employee signs; custodian/department/location follow the employee', () => {
     const a = newAsset();
-    const h = s.createHandover({ employeeId: 'E-006', issuedByUserId: 'U-AA', purpose: 'p', locationOfUse: 'x', items: [{ assetId: a.id, condition: 'New', quantity: 1, accessories: '', remarks: '' }], reason: 'test req' });
-    s.switchUser('U-DH-IT'); s.approveHandover(h.id, true, 'ok');
+    const h = s.createHandover({ employeeId: 'E-006', issuedByUserId: 'U-AA', items: [{ assetId: a.id, condition: 'New', quantity: 1, accessories: '', remarks: '' }], reason: 'test req' });
     expect(s.asset(a.id)!.status).toBe('Reserved');
     s.switchUser('U-EMP');                       // a different employee
     expect(() => s.acknowledgeHandover(h.id, 'S. Karthik', 'U-SA')).toThrow(/receiving employee/);
@@ -123,7 +119,7 @@ describe('Rules 3, 4, 7 — handover', () => {
     const e = s.getSnapshot().employees.find(x => x.id === 'E-006')!;
     s.saveEmployee({ ...e, active: false });
     const a = newAsset();
-    expect(() => s.createHandover({ employeeId: 'E-006', issuedByUserId: 'U-AA', purpose: 'p', locationOfUse: 'x', items: [{ assetId: a.id, condition: 'New', quantity: 1, accessories: '', remarks: '' }], reason: 'test req' })).toThrow(/active employee/);
+    expect(() => s.createHandover({ employeeId: 'E-006', issuedByUserId: 'U-AA', items: [{ assetId: a.id, condition: 'New', quantity: 1, accessories: '', remarks: '' }], reason: 'test req' })).toThrow(/active employee/);
   });
 });
 
@@ -270,7 +266,7 @@ describe('Rules 5, 6, 11 — transactions, immutability, audit', () => {
     expect(tx.map(t => t.type)).toEqual(['STATUS_CHANGE', 'HANDOVER', 'RETURN']);
     for (const t of tx) { expect(t.performedByUserId).toBeTruthy(); expect(t.date).toMatch(/^\d{4}-/); expect(t.reason.length).toBeGreaterThan(2); }
     const audit = s.getSnapshot().auditLogs.slice(0, 5).map(l => l.action);
-    expect(audit).toContain('RETURN_CREATED'); expect(audit).toContain('HANDOVER_ACKNOWLEDGED'); expect(audit).toContain('HANDOVER_APPROVED');
+    expect(audit).toContain('RETURN_CREATED'); expect(audit).toContain('HANDOVER_ACKNOWLEDGED'); expect(audit).toContain('HANDOVER_CREATED');
     for (const l of s.getSnapshot().auditLogs.slice(0, 5)) { expect(l.userName).toBeTruthy(); expect(l.role).toBeTruthy(); expect(l.reason).toBeTruthy(); }
   });
   it('the store exposes no way to edit or delete history', () => {
@@ -291,8 +287,8 @@ describe('Reference numbering', () => {
   it('uses GW-XX-YYYYMM-0001 and increments within the month', () => {
     const ym = new Date(); const period = `${ym.getFullYear()}${String(ym.getMonth() + 1).padStart(2, '0')}`;
     const a = newAsset(); const b = newAsset();
-    const h1 = s.createHandover({ employeeId: 'E-006', issuedByUserId: 'U-AA', purpose: 'p', locationOfUse: 'x', items: [{ assetId: a.id, condition: 'New', quantity: 1, accessories: '', remarks: '' }], reason: 'req one' });
-    const h2 = s.createHandover({ employeeId: 'E-006', issuedByUserId: 'U-AA', purpose: 'p', locationOfUse: 'x', items: [{ assetId: b.id, condition: 'New', quantity: 1, accessories: '', remarks: '' }], reason: 'req two' });
+    const h1 = s.createHandover({ employeeId: 'E-006', issuedByUserId: 'U-AA', items: [{ assetId: a.id, condition: 'New', quantity: 1, accessories: '', remarks: '' }], reason: 'req one' });
+    const h2 = s.createHandover({ employeeId: 'E-006', issuedByUserId: 'U-AA', items: [{ assetId: b.id, condition: 'New', quantity: 1, accessories: '', remarks: '' }], reason: 'req two' });
     expect(h1.id).toBe(`GW-HO-${period}-0001`); expect(h2.id).toBe(`GW-HO-${period}-0002`);
     expect(s.nextRef('RT', s.getSnapshot().returns)).toMatch(/^GW-RT-\d{6}-\d{4}$/);
     expect(s.nextRef('INC', s.getSnapshot().incidents)).toMatch(/^GW-INC-\d{6}-\d{4}$/);

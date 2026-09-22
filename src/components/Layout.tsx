@@ -26,7 +26,7 @@ export function Layout() {
       { to: '/assets/import', label: 'Bulk Import (Excel)', perm: ['asset.register', 'settings.manage'] },
     ] },
     { title: 'Custody', items: [
-      { to: '/handovers', label: 'Asset Assigned to Employee', badge: myAck || pendingFor('Handover') || undefined },
+      { to: '/handovers', label: 'Asset Assigned to Employee', badge: myAck || db.handovers.filter(h => h.status === 'Awaiting Acknowledgement').length || undefined },
       { to: '/returns', label: 'Asset Return' },
       { to: '/transfers', label: 'Asset Transfer', badge: pendingFor('Transfer') || undefined },
     ] },

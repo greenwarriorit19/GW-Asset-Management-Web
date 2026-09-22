@@ -449,7 +449,7 @@ export class Store {
   }
 
   // ---------- 4. Employee handover ----------
-  createHandover(input: { employeeId: string; issuedByUserId: string; expectedReturnDate?: string; purpose: string; locationOfUse: string; items: HandoverItem[]; reason: string }): Handover {
+  createHandover(input: { employeeId: string; issuedByUserId: string; expectedReturnDate?: string; purpose?: string; locationOfUse?: string; items: HandoverItem[]; reason: string }): Handover {
     this.snapshotBefore();
     this.require('handover.create');
     this.requireReason(input.reason);
@@ -465,19 +465,20 @@ export class Store {
       if (pendingElsewhere) throw new BusinessRuleError(`Rule 3: ${a.id} is already on a pending handover.`);
     }
     const id = this.nextRef('HO', this.db.handovers);
+    // No separate approval step: submitting reserves the assets and sends the assignment to the employee for signature.
     const h: Handover = {
       id, date: today(), employeeId: input.employeeId, issuedByUserId: input.issuedByUserId, expectedReturnDate: input.expectedReturnDate,
-      purpose: input.purpose, locationOfUse: input.locationOfUse, items: input.items, approval: 'Pending Approval', acknowledged: false,
-      status: 'Awaiting Approval', createdByUserId: this.currentUser.id, createdAt: nowIso(),
+      purpose: input.purpose ?? input.reason, locationOfUse: input.locationOfUse ?? this.locName(emp.workLocationId), items: input.items,
+      approval: 'Approved', approvedByUserId: this.currentUser.id, approvedAt: nowIso(), acknowledged: false,
+      status: 'Awaiting Acknowledgement', createdByUserId: this.currentUser.id, createdAt: nowIso(),
     };
     this.db.handovers = [...this.db.handovers, h];
     // Reserve the assets so they cannot be issued twice while approval is pending.
     for (const it of input.items) {
       const a = this.asset(it.assetId)!;
       this.setAsset(a.id, { status: 'Reserved' });
-      this.addTransaction({ type: 'STATUS_CHANGE', assetId: a.id, reference: id, statusBefore: a.status, statusAfter: 'Reserved', toEmployeeId: input.employeeId, reason: `Reserved for handover ${id}` });
+      this.addTransaction({ type: 'STATUS_CHANGE', assetId: a.id, reference: id, statusBefore: a.status, statusAfter: 'Reserved', toEmployeeId: input.employeeId, reason: `Reserved for assignment ${id}` });
     }
-    this.addApproval('Handover', id, 'dept_head');
     this.audit('HANDOVER_CREATED', 'Handover', id, input.reason, `${input.items.length} asset(s) to ${emp.name}`);
     this.commit();
     return h;
@@ -505,6 +506,23 @@ export class Store {
     this.commit();
   }
 
+  /** Withdraws an assignment that has not been signed yet; reserved assets go back to Available. */
+  cancelHandover(id: string, reason: string) {
+    this.require('handover.create');
+    this.requireReason(reason);
+    this.snapshotBefore();
+    const h = this.db.handovers.find(x => x.id === id);
+    if (!h || h.status !== 'Awaiting Acknowledgement') throw new BusinessRuleError('Only assignments awaiting acknowledgement can be cancelled.');
+    for (const it of h.items) {
+      const a = this.asset(it.assetId)!;
+      this.addTransaction({ type: 'STATUS_CHANGE', assetId: a.id, reference: id, statusBefore: a.status, statusAfter: 'Available', reason: `Assignment ${id} cancelled: ${reason}` });
+      this.setAsset(a.id, { status: 'Available' });
+    }
+    this.db.handovers = this.db.handovers.map(x => x.id === id ? { ...x, status: 'Rejected', approval: 'Rejected', approvalComments: reason } : x);
+    this.audit('HANDOVER_CANCELLED', 'Handover', id, reason);
+    this.commit();
+  }
+
   /** Rule 7 — the employee must acknowledge. Only then does status become Assigned. */
   acknowledgeHandover(id: string, signature: string, authorizedSignatoryUserId: string) {
     this.snapshotBefore();
@@ -518,7 +536,7 @@ export class Store {
     for (const it of h.items) {
       const a = this.asset(it.assetId)!;
       this.addTransaction({ type: 'HANDOVER', assetId: a.id, reference: id, toEmployeeId: h.employeeId, fromDepartmentId: a.departmentId, toDepartmentId: emp.departmentId,
-        fromLocationId: a.locationId, toLocationId: emp.workLocationId, statusBefore: a.status, statusAfter: 'Assigned', conditionBefore: a.condition, conditionAfter: it.condition, reason: h.purpose });
+        fromLocationId: a.locationId, toLocationId: emp.workLocationId, statusBefore: a.status, statusAfter: 'Assigned', conditionBefore: a.condition, conditionAfter: it.condition, reason: h.purpose || `Assignment ${id}` });
       this.setAsset(a.id, { status: 'Assigned', custodianEmployeeId: h.employeeId, departmentId: emp.departmentId, locationId: emp.workLocationId, condition: it.condition });
     }
     this.audit('HANDOVER_ACKNOWLEDGED', 'Handover', id, `Acknowledged by ${signature}`);

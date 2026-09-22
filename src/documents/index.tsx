@@ -113,13 +113,13 @@ export function HandoverDoc({ handover }: { handover: Handover }) {
         { label: 'Employee Signature', value: h.employeeSignature, date: h.acknowledgedAt },
         { label: 'Issued By', value: store.userName(h.issuedByUserId), sub: personWithTitle(store, h.issuedByUserId).split(' — ')[1], date: h.date },
         { label: 'Authorized Signatory', value: h.authorizedSignatoryUserId ? store.userName(h.authorizedSignatoryUserId) : undefined, sub: personWithTitle(store, h.authorizedSignatoryUserId).split(' — ')[1], date: h.acknowledgedAt },
-        { label: 'Approved By', value: h.approvedByUserId ? store.userName(h.approvedByUserId) : undefined, sub: personWithTitle(store, h.approvedByUserId).split(' — ')[1], date: h.approvedAt },
+        { label: 'Department Head', value: undefined, sub: store.employee(store.department(store.employee(h.employeeId)?.departmentId)?.headEmployeeId)?.name },
       ]}>
       <EmployeeBlock e={e} />
       <h4>Handover Details</h4>
       <Fields rows={[
         ['Assignment Reference No', h.id], ['Assignment Date', fmtDate(h.date)],
-        ['Approved By', h.approvedByUserId ? `${personWithTitle(store, h.approvedByUserId)}${h.approvedAt ? ` (${fmtDate(h.approvedAt)})` : ''}` : h.approval === 'Rejected' ? 'Rejected' : 'Pending approval'], ['Approval Status', h.approval],
+        ['Issued By', personWithTitle(store, h.issuedByUserId)], ['Status', h.status === 'Rejected' ? 'Cancelled' : h.status],
       ]} />
       <h4>Assets Assigned</h4>
       <AssetItemsTable rows={h.items} />
