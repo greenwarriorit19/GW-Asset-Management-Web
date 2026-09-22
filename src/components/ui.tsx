@@ -1,4 +1,4 @@
-import { useState, type ReactNode, type ChangeEvent } from 'react';
+import { useEffect, useState, type ReactNode, type ChangeEvent } from 'react';
 import type { Attachment } from '../data/types';
 import { SearchSelect, type Option } from './SearchSelect';
 import { askReason } from './Dialog';
@@ -196,6 +196,8 @@ export function useAction() {
     try { setError(null); const r = fn(); if (successMsg) setOk(successMsg); return r; }
     catch (e) { setOk(null); setError(e instanceof Error ? e.message : String(e)); return undefined; }
   };
-  const Messages = () => <>{error && <Alert kind="error">{error}</Alert>}{ok && <Alert kind="success">{ok}</Alert>}</>;
+  // Success notices disappear on their own after 3 seconds; errors stay until the next action.
+  useEffect(() => { if (!ok) return; const t = setTimeout(() => setOk(null), 3000); return () => clearTimeout(t); }, [ok]);
+  const Messages = () => <>{error && <Alert kind="error">{error}</Alert>}{ok && <div className="toast" role="status">{ok}</div>}</>;
   return { run, error, ok, Messages, clear: () => { setError(null); setOk(null); } };
 }

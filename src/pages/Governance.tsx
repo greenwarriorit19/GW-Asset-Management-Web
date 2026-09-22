@@ -274,7 +274,7 @@ export function SettingsPage() {
           { key: 'actions', header: 'Actions', render: d => <RowActions label={`department ${d.name}`} blockers={store.departmentDeleteBlockers(d.id)} onEdit={() => setDep({ ...d })} onDelete={reason => run(() => store.deleteDepartment(d.id, reason), 'Department deleted.')} /> }]} />
       </Section>}
       {tab === 'locations' && <Section title="Locations" compact right={<button className="btn sm primary" onClick={() => setLoc({ id: `L-${Date.now().toString(36).toUpperCase()}`, code: '', name: '' })}>Add Location</button>}>
-        <DataTable rows={db.locations} onRowClick={l => setLoc({ ...l })} columns={[{ key: 'code', header: 'Code' }, { key: 'name', header: 'Location' }, { key: 'address', header: 'Address' }, { key: 'count', header: 'Assets', num: true, render: l => db.assets.filter(a => a.locationId === l.id).length },
+        <DataTable rows={db.locations} onRowClick={l => setLoc({ ...l })} columns={[{ key: 'code', header: 'Code' }, { key: 'name', header: 'Location' }, { key: 'count', header: 'Assets', num: true, render: l => db.assets.filter(a => a.locationId === l.id).length },
           { key: 'actions', header: 'Actions', render: l => <RowActions label={`location ${l.name}`} blockers={store.locationDeleteBlockers(l.id)} onEdit={() => setLoc({ ...l })} onDelete={reason => run(() => store.deleteLocation(l.id, reason), 'Location deleted.')} /> }]} />
       </Section>}
       {tab === 'drive' && (
@@ -362,7 +362,6 @@ export function SettingsPage() {
         <div className="form-grid cols-2">
           <Input label="Code" required value={loc.code} onChange={e => setLoc({ ...loc, code: e.target.value.toUpperCase() })} />
           <Input label="Location Name" required value={loc.name} onChange={e => setLoc({ ...loc, name: e.target.value })} />
-          <Input label="Address" span={2} value={loc.address ?? ''} onChange={e => setLoc({ ...loc, address: e.target.value })} />
         </div>
       </Modal>}
     </>
