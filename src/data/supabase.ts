@@ -113,17 +113,21 @@ export async function replaceDatabase(prev: Database, next: Database) {
 }
 
 // ---------- realtime ----------
+let channelSeq = 0;
 export function subscribeChanges(onChange: () => void): () => void {
   const sb = supabase();
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const ch: RealtimeChannel = sb.channel('gw-asset-db');
+  // A fresh channel name every time: removeChannel() completes asynchronously, so reusing one name can
+  // hand back a channel that is still subscribed, and adding listeners to that throws
+  // "cannot add `postgres_changes` callbacks … after `subscribe()`".
+  const ch: RealtimeChannel = sb.channel(`gw-asset-db-${Date.now().toString(36)}-${++channelSeq}`);
   for (const c of COLLECTIONS) {
     ch.on('postgres_changes', { event: '*', schema: 'public', table: TABLES[c] }, () => {
       clearTimeout(timer); timer = setTimeout(onChange, 400);   // coalesce bursts of row events into one reload
     });
   }
   ch.subscribe();
-  return () => { clearTimeout(timer); sb.removeChannel(ch); };
+  return () => { clearTimeout(timer); void sb.removeChannel(ch); };
 }
 
 // ---------- auth ----------

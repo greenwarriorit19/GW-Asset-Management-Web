@@ -94,7 +94,9 @@ export class Store {
     this.lastCommitted = db;
     this.currentUser = user;
     this.unsubscribeRealtime?.();
-    this.unsubscribeRealtime = sb.subscribeChanges(() => this.reloadFromServer());
+    // Live updates are a convenience: if the realtime channel cannot start, sign-in must still succeed.
+    try { this.unsubscribeRealtime = sb.subscribeChanges(() => this.reloadFromServer()); }
+    catch (e) { this.unsubscribeRealtime = undefined; console.warn('Live updates are unavailable; the app will not refresh by itself.', e); }
     this.setSession({ phase: 'ready', email, error: undefined, sync: { state: 'idle' } });
   }
 
