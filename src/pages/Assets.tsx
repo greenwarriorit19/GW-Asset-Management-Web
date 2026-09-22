@@ -43,6 +43,7 @@ export function AssetInventory() {
     <>
       <PageHead crumbs="Assets" title="Asset Inventory" actions={<>
         {store.can('reports.export') && <button className="btn" onClick={() => exportRows('Asset-Inventory', rows.map(a => ({ 'Asset ID': a.id, Name: a.name, Category: store.catName(a.categoryId), Manufacturer: a.manufacturer, Model: a.model, 'Serial No': a.serialNumber, IMEI: a.imei ?? '', SIM: a.sim ?? '', Status: a.status, Condition: a.condition, Custodian: store.employeeName(a.custodianEmployeeId), Department: store.deptName(a.departmentId), Location: store.locName(a.locationId), 'Purchase Date': a.purchaseDate, 'Purchase Cost': a.purchaseCost, 'Warranty Expiry': a.warrantyExpiry ?? '' })), 'xlsx')}>Export Excel</button>}
+        {store.can('asset.register') && <Link className="btn" to="/assets/import">Bulk Import</Link>}
         {store.can('asset.register') && <Link className="btn primary" to="/assets/register">Register Asset</Link>}
       </>} />
       <div className="toolbar">

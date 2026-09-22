@@ -471,3 +471,58 @@ describe('Handover document accessories', () => {
     expect(parseAccessories('')).toEqual([]);
   });
 });
+
+describe('Bulk import (Excel)', () => {
+  it('validates rows against the register and within the file, resolving codes or names', async () => {
+    const { validateAssets, validateEmployees } = await import('../src/lib/bulk');
+    const db = s.getSnapshot();
+    const rows = [
+      { 'Asset Name': 'Phone A', Category: 'MOB', Manufacturer: 'Samsung', Model: 'A16', 'Serial Number': 'BULK-1', 'Supplier Name': 'S', 'Invoice Number': 'I', 'Purchase Date': '2026-09-01', 'Purchase Cost': '15,000', Department: 'Operations', 'Assigned Location': 'PM', Condition: 'New' },
+      { 'Asset Name': 'Phone B', Category: 'Mobile Phone', Manufacturer: 'Samsung', Model: 'A16', 'Serial Number': 'r58x3a1b2c01', 'Supplier Name': 'S', 'Invoice Number': 'I', Department: 'OPS', 'Assigned Location': 'PM' },   // serial exists in register
+      { 'Asset Name': 'Phone C', Category: 'XYZ', Manufacturer: 'Samsung', Model: 'A16', 'Serial Number': 'BULK-1', 'Supplier Name': 'S', 'Invoice Number': 'I', Department: 'OPS', 'Assigned Location': 'PM' },          // bad category + dup within file
+      { 'Asset Name': '', Category: 'MOB', Manufacturer: '', Model: 'A16', 'Serial Number': 'BULK-9', 'Supplier Name': 'S', 'Invoice Number': 'I', Department: 'OPS', 'Assigned Location': 'PM', 'Purchase Date': new Date(2026, 8, 5) },
+    ];
+    const v = validateAssets(rows, db);
+    expect(v[0].errors).toEqual([]);
+    expect(v[0].data).toMatchObject({ categoryId: 'C-MOB', departmentId: 'D-OPS', locationId: 'L-PM', purchaseCost: 15000, purchaseDate: '2026-09-01' });
+    expect(v[1].errors.join()).toMatch(/Serial R58X3A1B2C01 already exists/);
+    expect(v[2].errors.join()).toMatch(/Category "XYZ" not found/); expect(v[2].errors.join()).toMatch(/Serial BULK-1 already exists/);
+    expect(v[3].errors.join()).toMatch(/Asset Name is required/); expect(v[3].data.purchaseDate).toBe('2026-09-05');
+    const e = validateEmployees([{ 'Employee Name': 'New Person', Designation: 'Driver', Department: 'OPS', 'Work Location': 'PM Zone Depot', Active: 'no' }, { 'Employee ID': 'GW-EMP-0001', 'Employee Name': 'Dup', Designation: 'x', Department: 'OPS', 'Work Location': 'PM' }], db);
+    expect(e[0].errors).toEqual([]); expect(e[0].data).toMatchObject({ departmentId: 'D-OPS', workLocationId: 'L-PM', active: false });
+    expect(e[1].errors.join()).toMatch(/already exists/);
+  });
+  it('imports valid assets in one commit with sequential IDs, transactions and a single audit entry; rejects duplicates atomically', () => {
+    const base = { manufacturer: 'Samsung', model: 'A16', ownershipType: 'Company Owned' as const, supplierName: 'S', invoiceNumber: 'I', poNumber: '', purchaseDate: '2026-09-01', purchaseCost: 1000, condition: 'New' as const, departmentId: 'D-OPS', locationId: 'L-PM' };
+    const txBefore = s.getSnapshot().transactions.length; const auditBefore = s.getSnapshot().auditLogs.length;
+    const ids = s.importAssets([{ ...base, name: 'A', categoryId: 'C-MOB', serialNumber: 'BULK-A' }, { ...base, name: 'B', categoryId: 'C-MOB', serialNumber: 'BULK-B', imei: '999' }, { ...base, name: 'C', categoryId: 'C-LAP', serialNumber: 'BULK-C' }], 'Excel import');
+    expect(ids).toEqual(['GW-AST-MOB-0007', 'GW-AST-MOB-0008', 'GW-AST-LAP-0007']);
+    expect(s.getSnapshot().transactions.length).toBe(txBefore + 3);
+    expect(s.getSnapshot().auditLogs.length).toBe(auditBefore + 1);
+    expect(s.asset('GW-AST-MOB-0008')).toMatchObject({ status: 'Available', imei: '999', barcode: 'GW-AST-MOB-0008' });
+    const n = s.getSnapshot().assets.length;
+    expect(() => s.importAssets([{ ...base, name: 'D', categoryId: 'C-MOB', serialNumber: 'BULK-D' }, { ...base, name: 'E', categoryId: 'C-MOB', serialNumber: 'bulk-a' }], 'again')).toThrow(/Row 2.*already exists/);
+    expect(s.getSnapshot().assets.length).toBe(n);      // nothing from the failed batch was written
+  });
+  it('imports employees, generating GW-EMP codes when blank', () => {
+    s.switchUser('U-SA');
+    const ids = s.importEmployees([{ name: 'P One', designation: 'Driver', departmentId: 'D-OPS', dateOfJoining: '2026-09-01', workLocationId: 'L-PM', mobile: '', email: '', active: true }, { employeeCode: 'GW-EMP-0100', name: 'P Two', designation: 'Clerk', departmentId: 'D-FIN', dateOfJoining: '', workLocationId: 'L-HO', mobile: '', email: '', active: true }], 'Excel import');
+    const codes = ids.map(id => s.employee(id)!.employeeCode);
+    expect(codes).toEqual(['GW-EMP-0013', 'GW-EMP-0100']);
+    s.switchUser('U-AA');
+    expect(() => s.importEmployees([], 'x')).toThrow(/permit/);
+  });
+  it('template and upload round-trip through a real .xlsx file', async () => {
+    const XLSX = await import('xlsx');
+    const { readSheet, validateAssets, ASSET_COLUMNS } = await import('../src/lib/bulk');
+    const headers = ASSET_COLUMNS.map(c => c[0]);
+    const row = ['Excel Phone', 'MOB', 'Samsung', 'A16', 'XL-1', '', '', '', 'Company Owned', 'S', 'I', '', new Date(2026, 8, 1), 12000, '', '', '', 'Good', 'OPS', 'PM', '', 'Charger', '', ''];
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([headers, row]), 'Assets');
+    const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
+    const file = { name: 't.xlsx', arrayBuffer: async () => buf } as unknown as File;
+    const { rows } = await readSheet(file, 'Assets');
+    const v = validateAssets(rows, s.getSnapshot());
+    expect(v).toHaveLength(1); expect(v[0].errors).toEqual([]);
+    expect(v[0].data).toMatchObject({ name: 'Excel Phone', serialNumber: 'XL-1', purchaseDate: '2026-09-01', purchaseCost: 12000, condition: 'Good', accessories: 'Charger' });
+  });
+});

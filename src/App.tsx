@@ -16,6 +16,7 @@ import { Disposals } from './pages/Disposals';
 import { Reports } from './pages/Reports';
 import { AuditLogPage, DocumentsPage, UsersPage, SettingsPage } from './pages/Governance';
 import { Login } from './pages/Login';
+import { BulkImport } from './pages/BulkImport';
 import { DialogHost } from './components/Dialog';
 
 /** Route guard: the menu hides pages a role cannot use; this stops them being opened by URL as well. */
@@ -52,6 +53,7 @@ export default function App() {
             <Route path="/track" element={<Tracker />} />
             <Route path="/assets" element={<AssetInventory />} />
             <Route path="/assets/register" element={<Guard perm="asset.register"><AssetRegister /></Guard>} />
+            <Route path="/assets/import" element={<Guard perm={['asset.register', 'settings.manage']}><BulkImport /></Guard>} />
             <Route path="/assets/:id" element={<AssetDetail />} />
             <Route path="/handovers" element={<HandoverList />} />
             <Route path="/handovers/new" element={<Guard perm="handover.create"><HandoverNew /></Guard>} />

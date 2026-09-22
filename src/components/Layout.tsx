@@ -23,6 +23,7 @@ export function Layout() {
       { to: '/track', label: 'Asset Tracker' },
       { to: '/assets', label: 'Asset Inventory' },
       { to: '/assets/register', label: 'Asset Registration', perm: 'asset.register' },
+      { to: '/assets/import', label: 'Bulk Import (Excel)', perm: ['asset.register', 'settings.manage'] },
     ] },
     { title: 'Custody', items: [
       { to: '/handovers', label: 'Employee Handover', badge: myAck || pendingFor('Handover') || undefined },

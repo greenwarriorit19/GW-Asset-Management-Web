@@ -369,6 +369,58 @@ export class Store {
     return asset;
   }
 
+  /** Bulk registration (Excel import): validates everything first, then writes all rows in ONE commit. Returns the new Asset IDs. */
+  importAssets(rows: Omit<Asset, 'id' | 'status' | 'registeredBy' | 'registeredAt' | 'custodianEmployeeId'>[], reason: string): string[] {
+    this.require('asset.register');
+    this.requireReason(reason);
+    this.snapshotBefore();
+    const seen = { sn: new Set<string>(), imei: new Set<string>(), sim: new Set<string>() };
+    const u = (x?: string) => (x ?? '').trim().toUpperCase();
+    rows.forEach((r, i) => {
+      if (!r.name?.trim() || !r.serialNumber?.trim()) throw new BusinessRuleError(`Row ${i + 1}: name and serial number are required.`);
+      const dup = this.checkDuplicates(r);
+      if (dup.length) throw new BusinessRuleError(`Row ${i + 1}: ${dup.join(' ')}`);
+      if (seen.sn.has(u(r.serialNumber)) || (r.imei && seen.imei.has(u(r.imei))) || (r.sim && seen.sim.has(u(r.sim)))) throw new BusinessRuleError(`Row ${i + 1}: duplicate serial / IMEI / SIM within the file.`);
+      seen.sn.add(u(r.serialNumber)); if (r.imei) seen.imei.add(u(r.imei)); if (r.sim) seen.sim.add(u(r.sim));
+      if (!this.category(r.categoryId)) throw new BusinessRuleError(`Row ${i + 1}: category not found.`);
+    });
+    const ids: string[] = [];
+    for (const r of rows) {
+      const id = this.nextAssetId(r.categoryId);
+      const asset: Asset = { ...r, id, barcode: r.barcode || id, status: 'Available', registeredBy: this.currentUser.id, registeredAt: nowIso() };
+      this.db.assets = [...this.db.assets, asset];
+      this.addTransaction({ type: 'REGISTRATION', assetId: id, statusBefore: 'Available', statusAfter: 'Available', conditionAfter: asset.condition, toDepartmentId: asset.departmentId, toLocationId: asset.locationId, reason, remarks: `Bulk import · Invoice ${asset.invoiceNumber}` });
+      ids.push(id);
+    }
+    this.audit('ASSETS_IMPORTED', 'Asset', ids.length === 1 ? ids[0] : `${ids[0]} … ${ids[ids.length - 1]}`, reason, `${ids.length} asset(s) registered from Excel`);
+    this.commit();
+    return ids;
+  }
+
+  /** Bulk employee import in ONE commit. Blank employee codes are generated (GW-EMP-0001…). */
+  importEmployees(rows: (Omit<Employee, 'id' | 'employeeCode'> & { employeeCode?: string })[], reason: string): string[] {
+    this.require('settings.manage');
+    this.requireReason(reason);
+    this.snapshotBefore();
+    const existing = new Set(this.db.employees.map(e => e.employeeCode.toUpperCase()));
+    let next = this.db.employees.reduce((m, e) => Math.max(m, Number(e.employeeCode.replace(/\D/g, '')) || 0), 0);
+    const ids: string[] = [];
+    for (const [i, r] of rows.entries()) {
+      if (!r.name?.trim() || !r.designation?.trim()) throw new BusinessRuleError(`Row ${i + 1}: name and designation are required.`);
+      if (!this.department(r.departmentId) || !this.location(r.workLocationId)) throw new BusinessRuleError(`Row ${i + 1}: department or location not found.`);
+      let code = (r.employeeCode ?? '').trim().toUpperCase();
+      if (!code) { do { next += 1; code = `GW-EMP-${String(next).padStart(4, '0')}`; } while (existing.has(code)); }
+      if (existing.has(code)) throw new BusinessRuleError(`Row ${i + 1}: Employee ID ${code} already exists.`);
+      existing.add(code);
+      const id = `E-${Date.now().toString(36).toUpperCase()}${i}`;
+      this.db.employees = [...this.db.employees, { ...r, id, employeeCode: code }];
+      ids.push(id);
+    }
+    this.audit('EMPLOYEES_IMPORTED', 'Employee', `${ids.length} record(s)`, reason, `${ids.length} employee(s) added from Excel`);
+    this.commit();
+    return ids;
+  }
+
   updateAsset(id: string, patch: Partial<Asset>, reason: string) {
     this.snapshotBefore();
     this.require('asset.edit');
