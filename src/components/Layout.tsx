@@ -13,7 +13,6 @@ export function Layout() {
   const has = (p?: Permission | Permission[]) => !p || (Array.isArray(p) ? p.some(x => store.can(x)) : store.can(p));
 
   const pendingFor = (type: string) => db.approvals.filter(a => a.decision === 'Pending Approval' && a.entityType === type).length;
-  const myAck = db.handovers.filter(h => h.status === 'Awaiting Acknowledgement' && h.employeeId === u.employeeId).length;
 
   const groups: { title: string; items: NavItem[] }[] = [
     { title: 'Overview', items: [
@@ -26,7 +25,7 @@ export function Layout() {
       { to: '/assets/import', label: 'Bulk Import (Excel)', perm: ['asset.register', 'settings.manage'] },
     ] },
     { title: 'Custody', items: [
-      { to: '/handovers', label: 'Asset Assigned to Employee', badge: myAck || db.handovers.filter(h => h.status === 'Awaiting Acknowledgement').length || undefined },
+      { to: '/handovers', label: 'Asset Assigned to Employee' },
       { to: '/returns', label: 'Asset Return' },
       { to: '/transfers', label: 'Asset Transfer', badge: pendingFor('Transfer') || undefined },
     ] },

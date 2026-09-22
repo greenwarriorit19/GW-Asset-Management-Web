@@ -38,16 +38,13 @@ export function loadSampleData(store: Store): string {
   const item = (assetId: string, accessories: string) => ({ assetId, condition: 'New' as const, quantity: 1, accessories, remarks: '' });
   const issuer = store.currentUser.id;
 
-  // 3. Assignments — one acknowledged (Active), one awaiting the employee's signature
-  const h1 = store.createHandover({ employeeId: arun, issuedByUserId: issuer, items: [item(m1, 'Charger - 25W, USB-C cable, Back case'), item(s1, '')], reason });
-  store.acknowledgeHandover(h1.id, 'Sample — Arun Kumar', issuer);
-  const h2 = store.createHandover({ employeeId: deepak, issuedByUserId: issuer, items: [item(l1, 'Charger - 65W, Laptop bag, Wireless mouse')], reason });
-  store.acknowledgeHandover(h2.id, 'Sample — Deepak R', issuer);
-  store.createHandover({ employeeId: meena, issuedByUserId: issuer, items: [item(m2, 'Charger - 25W, USB-C cable'), item(c1, 'Dock, Clip, Charger')], reason });   // awaiting signature
+  // 3. Assignments — assets pass to the employee on submit
+  store.createHandover({ employeeId: arun, issuedByUserId: issuer, items: [item(m1, 'Charger - 25W, USB-C cable, Back case'), item(s1, '')], reason });
+  store.createHandover({ employeeId: deepak, issuedByUserId: issuer, items: [item(l1, 'Charger - 65W, Laptop bag, Wireless mouse')], reason });
+  store.createHandover({ employeeId: meena, issuedByUserId: issuer, items: [item(m2, 'Charger - 25W, USB-C cable'), item(c1, 'Dock, Clip, Charger')], reason });
 
   // 4. A return pending inspection
-  const h3 = store.createHandover({ employeeId: kavitha, issuedByUserId: issuer, items: [item(l2, 'Charger - 65W, Bag')], reason });
-  store.acknowledgeHandover(h3.id, 'Sample — Kavitha P', issuer);
+  store.createHandover({ employeeId: kavitha, issuedByUserId: issuer, items: [item(l2, 'Charger - 65W, Bag')], reason });
   store.createReturn({ assetId: l2, conditionReported: 'Fair', accessoriesReturned: 'Charger - 65W', employeeRemarks: 'Bag misplaced', employeeSignature: 'Sample — Kavitha P', reason: 'Replaced with new laptop' });
 
   // 5. A repair in progress and an incident under investigation
@@ -57,5 +54,5 @@ export function loadSampleData(store: Store): string {
   // 6. A retirement recommendation
   store.startRetirement({ assetId: t1, retirementReason: 'Screen cracked beyond economic repair', technicalRecommendation: 'Repair quote exceeds 60% of replacement cost', reason: 'End of life' });
 
-  return `Sample data loaded: ${empIds.length} employees, ${ids.length} assets (${m1} … ${ids[ids.length - 1]}), 2 active assignments, 1 awaiting signature, 1 return pending inspection, 1 repair, 1 incident, 1 retirement.`;
+  return `Sample data loaded: ${empIds.length} employees, ${ids.length} assets (${m1} … ${ids[ids.length - 1]}), 4 assignments, 1 return pending inspection, 1 repair, 1 incident, 1 retirement.`;
 }

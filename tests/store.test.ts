@@ -16,13 +16,10 @@ const newAsset = (over: Partial<Parameters<Store['registerAsset']>[0]> = {}) => 
   });
 };
 
-/** Full issue: create handover → dept-head approval → employee acknowledgement. Returns handover id. */
-const issue = (assetId: string, employeeId = 'E-006', head = 'U-DH-IT', ackUser = 'U-EMP2') => {
+/** Full issue: creating the assignment hands the asset over immediately. Returns handover id. */
+const issue = (assetId: string, employeeId = 'E-006') => {
   asAdmin();
   const h = s.createHandover({ employeeId, issuedByUserId: 'U-AA', items: [{ assetId, condition: 'New', quantity: 1, accessories: 'Charger', remarks: '' }], reason: 'Department request approved' });
-  void head;
-  s.switchUser(ackUser); s.acknowledgeHandover(h.id, s.employeeName(employeeId), 'U-SA');
-  asAdmin();
   return h.id;
 };
 
@@ -90,29 +87,24 @@ describe('Rules 3, 4, 7 — handover', () => {
   it('only Available assets can be issued', () => {
     expect(() => s.createHandover({ employeeId: 'E-006', issuedByUserId: 'U-AA', items: [{ assetId: 'GW-AST-MOB-0001', condition: 'Good', quantity: 1, accessories: '', remarks: '' }], reason: 'test req' })).toThrow(/Rule 4/);
   });
-  it('submitting reserves the assets (no approval step), blocks a second issue, cancelling releases them', () => {
+  it('submitting assigns the assets (no approval or signature step), blocks a second issue, cancelling releases them', () => {
     const a = newAsset();
     const h = s.createHandover({ employeeId: 'E-006', issuedByUserId: 'U-AA', items: [{ assetId: a.id, condition: 'New', quantity: 1, accessories: '', remarks: '' }], reason: 'test req' });
-    expect(h.status).toBe('Awaiting Acknowledgement');
+    expect(h.status).toBe('Active');
     expect(s.getSnapshot().approvals.some(x => x.entityId === h.id)).toBe(false);
-    expect(s.asset(a.id)!.status).toBe('Reserved');
+    expect(s.asset(a.id)!.status).toBe('Assigned');
     expect(() => s.createHandover({ employeeId: 'E-004', issuedByUserId: 'U-AA', items: [{ assetId: a.id, condition: 'New', quantity: 1, accessories: '', remarks: '' }], reason: 'test req' })).toThrow(/Rule 4/);
     s.cancelHandover(h.id, 'Not required');
-    expect(s.asset(a.id)!.status).toBe('Available');
+    expect(s.asset(a.id)).toMatchObject({ status: 'Available', custodianEmployeeId: undefined });
     expect(s.getSnapshot().handovers.find(x => x.id === h.id)!.status).toBe('Rejected');
-    expect(() => s.cancelHandover(h.id, 'again')).toThrow(/awaiting acknowledgement/);
+    expect(() => s.cancelHandover(h.id, 'again')).toThrow(/active assignment/);
   });
-  it('asset becomes Assigned only after the employee signs; custodian/department/location follow the employee', () => {
+  it('custodian, department and location follow the employee as soon as the assignment is submitted', () => {
     const a = newAsset();
     const h = s.createHandover({ employeeId: 'E-006', issuedByUserId: 'U-AA', items: [{ assetId: a.id, condition: 'New', quantity: 1, accessories: '', remarks: '' }], reason: 'test req' });
-    expect(s.asset(a.id)!.status).toBe('Reserved');
-    s.switchUser('U-EMP');                       // a different employee
-    expect(() => s.acknowledgeHandover(h.id, 'S. Karthik', 'U-SA')).toThrow(/receiving employee/);
-    s.switchUser('U-EMP2');
-    expect(() => s.acknowledgeHandover(h.id, '   ', 'U-SA')).toThrow(/signature/);
-    s.acknowledgeHandover(h.id, 'V. Lakshmi', 'U-SA');
     expect(s.asset(a.id)).toMatchObject({ status: 'Assigned', custodianEmployeeId: 'E-006', departmentId: 'D-IT', locationId: 'L-HO' });
-    expect(s.getSnapshot().handovers.find(x => x.id === h.id)).toMatchObject({ status: 'Active', acknowledged: true, employeeSignature: 'V. Lakshmi' });
+    expect(s.getSnapshot().handovers.find(x => x.id === h.id)).toMatchObject({ status: 'Active', acknowledged: true });
+    expect(s.assetHistory(a.id).some(x => x.type === 'HANDOVER' && x.toEmployeeId === 'E-006')).toBe(true);
   });
   it('inactive employee cannot receive assets', () => {
     s.switchUser('U-SA');
@@ -158,9 +150,8 @@ describe('Transfer', () => {
     expect(() => s.completeTransfer(t.id, 'too early')).toThrow(/approved/);
     s.switchUser('U-DH-OPS'); s.approveTransfer(t.id, true, 'Approved');
     asAdmin(); const ho2 = s.completeTransfer(t.id, 'Handed over at HO')!;
-    expect(s.asset(a.id)).toMatchObject({ status: 'Transferred', custodianEmployeeId: undefined, departmentId: 'D-OPS', locationId: 'L-PM' });
-    s.switchUser('U-EMP'); s.acknowledgeHandover(ho2, 'S. Karthik', 'U-SA');
-    expect(s.asset(a.id)).toMatchObject({ status: 'Assigned', custodianEmployeeId: 'E-004' });
+    expect(s.getSnapshot().handovers.find(x => x.id === ho2)).toMatchObject({ status: 'Active', transferId: t.id });
+    expect(s.asset(a.id)).toMatchObject({ status: 'Assigned', custodianEmployeeId: 'E-004', departmentId: 'D-OPS', locationId: 'L-PM' });
     const custodians = s.assetHistory(a.id).filter(x => x.type === 'HANDOVER').map(x => x.toEmployeeId);
     expect(custodians).toEqual(['E-004', 'E-006']);
     expect(s.getSnapshot().handovers.filter(h => h.items.some(i => i.assetId === a.id) && h.status === 'Closed')).toHaveLength(1);
@@ -263,10 +254,10 @@ describe('Rules 5, 6, 11 — transactions, immutability, audit', () => {
     issue(a.id);
     s.createReturn({ assetId: a.id, conditionReported: 'Good', accessoriesReturned: '', employeeSignature: 'x', reason: 'Returned' });
     const tx = s.getSnapshot().transactions.slice(before);
-    expect(tx.map(t => t.type)).toEqual(['STATUS_CHANGE', 'HANDOVER', 'RETURN']);
+    expect(tx.map(t => t.type)).toEqual(['HANDOVER', 'RETURN']);
     for (const t of tx) { expect(t.performedByUserId).toBeTruthy(); expect(t.date).toMatch(/^\d{4}-/); expect(t.reason.length).toBeGreaterThan(2); }
     const audit = s.getSnapshot().auditLogs.slice(0, 5).map(l => l.action);
-    expect(audit).toContain('RETURN_CREATED'); expect(audit).toContain('HANDOVER_ACKNOWLEDGED'); expect(audit).toContain('HANDOVER_CREATED');
+    expect(audit).toContain('RETURN_CREATED'); expect(audit).toContain('HANDOVER_CREATED');
     for (const l of s.getSnapshot().auditLogs.slice(0, 5)) { expect(l.userName).toBeTruthy(); expect(l.role).toBeTruthy(); expect(l.reason).toBeTruthy(); }
   });
   it('the store exposes no way to edit or delete history', () => {
@@ -546,12 +537,11 @@ describe('Sample data', () => {
     expect(msg).toMatch(/4 employees, 10 assets/);
     const db = s.getSnapshot();
     expect(db.employees.length).toBe(4); expect(db.assets.length).toBe(10);
-    expect(db.assets.filter(a => a.status === 'Assigned').length).toBe(3);
-    expect(db.assets.filter(a => a.status === 'Reserved').length).toBe(2);
+    expect(db.assets.filter(a => a.status === 'Assigned').length).toBe(5);
+    expect(db.assets.filter(a => a.status === 'Reserved').length).toBe(0);
     expect(db.assets.filter(a => a.status === 'Under Inspection').length).toBe(1);
     expect(db.assets.filter(a => a.status === 'Under Repair').length).toBe(1);
     expect(db.assets.filter(a => a.status === 'Damaged').length).toBe(1);
-    expect(db.handovers.filter(h => h.status === 'Awaiting Acknowledgement').length).toBe(1);
     expect(db.disposals.length).toBe(1);
     expect(db.transactions.every(t => t.reason && t.performedByUserId)).toBe(true);
     await new Promise(r => setTimeout(r, 2));   // different tag → unique serials

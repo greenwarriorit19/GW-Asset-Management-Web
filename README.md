@@ -51,11 +51,11 @@ numbering and document templates are independent of storage.
 
 1. Unique Asset ID per category: `GW-AST-MOB-0001`
 2. Serial / IMEI / SIM duplicate check on registration and edit
-3. One active custodian per asset; assets are *Reserved* while a handover awaits approval
+3. One active custodian per asset
 4. Only *Available* assets can be issued
 5. Every issue / return / transfer / repair / incident / verification / retirement / disposal writes a separate transaction
 6. Transactions and audit entries are never edited or deleted
-7. The employee must sign the acknowledgement before status becomes *Assigned*
+7. Assigning an asset needs no approval or signature: on submit the asset becomes *Assigned* to the employee
 8. Returns go to *Under Inspection*; inspection decides Available / Under Repair / Damaged (auto-opens an incident)
 9. Lost/damaged requires an incident report, investigation and approval
 10. Disposal requires management authorization and an uploaded supporting document
@@ -70,4 +70,4 @@ numbering and document templates are independent of storage.
 
 ## Roles
 
-Super Admin · Asset Administrator · Department Head (scoped to own department) · Employee (own assets, acknowledge, report, request) · Auditor / Management (read-only). The full permission matrix is on **Users & Permissions**.
+Super Admin · Asset Administrator · Department Head (scoped to own department) · Employee (own assets, report, request) · Auditor / Management (read-only). The full permission matrix is on **Users & Permissions**.
