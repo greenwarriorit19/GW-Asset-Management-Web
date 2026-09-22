@@ -104,11 +104,12 @@ export function PasswordInput({ label, required, hint, span, className, value, o
   );
 }
 
-export function ReadOnly({ label, value, span }: { label: string; value: ReactNode; span?: FieldBase['span'] }) {
+export function ReadOnly({ label, value, span, hint }: { label: string; value: ReactNode; span?: FieldBase['span']; hint?: string }) {
   return (
     <div className={`field ${spanClass(span)}`}>
       <label>{label}</label>
       <input readOnly value={typeof value === 'string' || typeof value === 'number' ? value : ''} />
+      {hint && <span className="hint">{hint}</span>}
     </div>
   );
 }
