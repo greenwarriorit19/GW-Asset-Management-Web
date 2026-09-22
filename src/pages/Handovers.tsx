@@ -149,11 +149,17 @@ export function HandoverNew() {
             <Select label="Issued By" required value={issuedBy} onChange={e => setIssuedBy(e.target.value)} options={db.users.filter(u => ['asset_admin', 'super_admin'].includes(u.role)).map(u => ({ value: u.id, label: u.name }))} />
           </div>
         </Section>
-        <Section title="Assets to Assign" compact right={<div className="btn-row"><SearchSelect className="tb" style={{ minWidth: 320 }} value={pick} onChange={e => setPick(e.target.value)} placeholder="Add available asset…" options={available.map(a => ({ value: a.id, label: `${a.id} — ${a.name} (${a.serialNumber})` }))} /><button type="button" className="btn sm" disabled={!pick} onClick={add}>Add</button></div>}>
+        <Section title="Assets to Assign" compact right={<div className="btn-row"><SearchSelect className="tb" style={{ minWidth: 320 }} value={pick} onChange={e => setPick(e.target.value)} placeholder={available.length ? `Add available asset… (${available.length})` : 'No assets are Available'} options={available.map(a => ({ value: a.id, label: `${a.id} — ${a.name} (${a.serialNumber})` }))} /><button type="button" className="btn sm" disabled={!pick} onClick={add}>Add</button></div>}>
           <table className="data">
             <thead><tr><th>#</th><th>Asset ID / Accessories</th><th>Asset Type</th><th>Make and Model</th><th>Serial / IMEI / SIM</th><th>Condition</th><th>Qty</th><th>Remarks</th><th /></tr></thead>
             <tbody>
-              {items.length === 0 && <tr><td className="empty" colSpan={9}>No assets added. Only Available assets are listed.</td></tr>}
+              {items.length === 0 && <tr><td className="empty" colSpan={9}>
+                {available.length > 0
+                  ? <>Pick an asset from <b>Add available asset…</b> above — {available.length} asset(s) are Available.</>
+                  : db.assets.length === 0
+                    ? <>No assets have been registered yet. <Link to="/assets/register">Register an asset</Link> or use <Link to="/assets/import">Bulk Import</Link> first.</>
+                    : <>None of the {db.assets.length} registered asset(s) are <b>Available</b> to assign — {[...new Set(db.assets.map(a => a.status))].map(st => `${db.assets.filter(a => a.status === st).length} ${st}`).join(', ')}. Return or free one, or <Link to="/assets/register">register a new asset</Link>.</>}
+              </td></tr>}
               {items.map((it, i) => { const a = store.asset(it.assetId)!; const acc = rowsFor(it.assetId, it.accessories);
                 const setAcc = (list: Acc[]) => setRows(i, it.assetId, list);
                 const cell = { width: '100%', padding: 4, fontFamily: 'inherit' } as const;
