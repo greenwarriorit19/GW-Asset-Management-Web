@@ -54,7 +54,7 @@ create table if not exists asset_categories (
 create unique index if not exists asset_categories_code_uq on asset_categories (code);
 
 create table if not exists employees (
-  id text primary key, employee_code text not null unique, name text not null, designation text,
+  id text primary key, employee_code text not null unique, erp_id text, name text not null, designation text,
   department_id text references departments(id), date_of_joining text, work_location_id text references locations(id),
   mobile text, email text, active boolean not null default true,
   updated_at timestamptz not null default now()
@@ -66,6 +66,9 @@ create table if not exists users (
   updated_at timestamptz not null default now()
 );
 create unique index if not exists users_email_uq on users (lower(email));
+
+-- Added later: safe on an existing database
+alter table employees add column if not exists erp_id text;
 
 -- ---------- Assets (current state) ----------
 create table if not exists assets (

@@ -56,9 +56,10 @@ function EmployeeBlock({ e, title = 'Employee Details' }: { e?: Employee; title?
       <h4>{title}</h4>
       <Fields rows={[
         ['Employee Name', e?.name], ['Employee ID', e?.employeeCode],
-        ['Designation', e?.designation], ['Department', store.deptName(e?.departmentId)],
-        ['Date of Joining', e ? fmtDate(e.dateOfJoining) : ''], ['Work Location', store.locName(e?.workLocationId)],
-        ['Mobile Number', e?.mobile], ['Email Address', e?.email],
+        ['ERP ID', e?.erpId], ['Designation', e?.designation],
+        ['Department', store.deptName(e?.departmentId)], ['Work Location', store.locName(e?.workLocationId)],
+        ['Date of Joining', e ? fmtDate(e.dateOfJoining) : ''], ['Mobile Number', e?.mobile],
+        ['Email Address', e?.email],
       ]} />
     </>
   );

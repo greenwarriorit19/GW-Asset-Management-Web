@@ -40,6 +40,7 @@ export interface Category { id: string; code: string; name: string; description?
 export interface Employee {
   id: string;
   employeeCode: string;     // e.g. GW-EMP-0012 (shown as "Employee ID")
+  erpId?: string;           // employee reference in the ERP / payroll system
   name: string;
   designation: string;
   departmentId: string;

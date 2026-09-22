@@ -15,7 +15,7 @@ export const ASSET_COLUMNS = [
 export const IMEI_SIM_CATEGORIES = ['MOB', 'TAB', 'GPS', 'SIM'];
 
 export const EMPLOYEE_COLUMNS = [
-  ['Employee ID', 'optional — e.g. GW-EMP-0031; generated when blank'], ['Employee Name', 'required'], ['Designation', 'required'], ['Department', 'required — code or name'],
+  ['Employee ID', 'optional — e.g. GW-EMP-0031; generated when blank'], ['ERP ID', 'optional — reference in the ERP / payroll system'], ['Employee Name', 'required'], ['Designation', 'required'], ['Department', 'required — code or name'],
   ['Date of Joining', 'date'], ['Work Location', 'required — code or name'], ['Mobile Number', ''], ['Email Address', ''], ['Active', 'Yes / No (default Yes)'],
 ] as const;
 
@@ -25,7 +25,7 @@ export interface AssetRow {
   warrantyStart?: string; warrantyExpiry?: string; funding?: string; condition: Condition; departmentId: string; locationId: string;
   specification?: string; accessories?: string; maintenanceNotes?: string; remarks?: string;
 }
-export interface EmployeeRow { employeeCode?: string; name: string; designation: string; departmentId: string; dateOfJoining: string; workLocationId: string; mobile: string; email: string; active: boolean }
+export interface EmployeeRow { employeeCode?: string; erpId?: string; name: string; designation: string; departmentId: string; dateOfJoining: string; workLocationId: string; mobile: string; email: string; active: boolean }
 export interface Parsed<T> { line: number; data: T; errors: string[]; raw: Record<string, unknown> }
 
 const norm = (s: unknown) => String(s ?? '').trim();
@@ -109,7 +109,7 @@ export function validateEmployees(rows: Record<string, unknown>[], db: Database)
     const code = g('Employee ID').toUpperCase();
     if (code && (codes.has(code) || seen.has(code))) e.push(`Employee ID ${code} already exists`); if (code) seen.add(code);
     const active = !/^(n|no|false|0|inactive)$/i.test(g('Active'));
-    return { line: i + 2, errors: e, raw, data: { employeeCode: code || undefined, name: g('Employee Name'), designation: g('Designation'), departmentId: dept ?? '', dateOfJoining: toDate(findCol(raw, 'Date of Joining')) ?? '', workLocationId: loc ?? '', mobile: g('Mobile Number'), email: g('Email Address'), active } };
+    return { line: i + 2, errors: e, raw, data: { employeeCode: code || undefined, erpId: g('ERP ID') || undefined, name: g('Employee Name'), designation: g('Designation'), departmentId: dept ?? '', dateOfJoining: toDate(findCol(raw, 'Date of Joining')) ?? '', workLocationId: loc ?? '', mobile: g('Mobile Number'), email: g('Email Address'), active } };
   });
 }
 
@@ -136,7 +136,7 @@ export async function downloadTemplate(db: Database) {
   ASSET_COLUMNS.forEach((c, i) => { if (c[1].startsWith('REQUIRED')) { const ref = XLSX.utils.encode_cell({ r: 0, c: i }); wa[ref].v = `${c[0]} *`; } });
   XLSX.utils.book_append_sheet(wb, wa, 'Assets');
   const empHeaders = EMPLOYEE_COLUMNS.map(c => c[0]);
-  const we = XLSX.utils.aoa_to_sheet([empHeaders, ['', 'A. Kumar', 'Field Supervisor', 'OPS', '2026-09-01', 'PM', '+91 98400 00000', 'kumar@greenwarrior.in', 'Yes']]);
+  const we = XLSX.utils.aoa_to_sheet([empHeaders, ['', 'ERP-1042', 'A. Kumar', 'Field Supervisor', 'OPS', '2026-09-01', 'PM', '+91 98400 00000', 'kumar@greenwarrior.in', 'Yes']]);
   we['!cols'] = empHeaders.map(h => ({ wch: Math.max(14, h.length + 2) }));
   XLSX.utils.book_append_sheet(wb, we, 'Employees');
   const instr: (string | number)[][] = [

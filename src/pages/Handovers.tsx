@@ -129,6 +129,7 @@ export function HandoverNew() {
           <div className="form-grid cols-4">
             <Select label="Employee" required span={2} value={employeeId} onChange={e => { setEmployeeId(e.target.value); const em = store.employee(e.target.value); if (em) setLocationOfUse(store.locName(em.workLocationId)); }} placeholder="Select employee…" options={db.employees.filter(e => e.active).map(e => ({ value: e.id, label: `${e.name} — ${e.employeeCode} (${store.deptName(e.departmentId)})` }))} />
             <ReadOnly label="Employee ID" value={emp?.employeeCode ?? ''} />
+            <ReadOnly label="ERP ID" value={emp?.erpId ?? ''} />
             <ReadOnly label="Designation" value={emp?.designation ?? ''} />
             <ReadOnly label="Department" value={emp ? store.deptName(emp.departmentId) : ''} />
             <ReadOnly label="Date of Joining" value={emp ? fmtDate(emp.dateOfJoining) : ''} />
