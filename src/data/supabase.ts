@@ -153,3 +153,19 @@ export function matchUser(db: Database, email?: string): User | undefined {
   if (!email) return undefined;
   return db.users.find(u => u.active && u.email.trim().toLowerCase() === email.trim().toLowerCase());
 }
+
+// ---------- creating logins for app users (Super Admin action) ----------
+// Uses a throw-away client so signing the NEW user up never disturbs the administrator's own session.
+export type CreateLoginResult = 'created' | 'created_needs_confirmation' | 'already_exists';
+export async function createAuthUser(email: string, password: string): Promise<CreateLoginResult> {
+  const tmp = createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+  const { data, error } = await tmp.auth.signUp({ email, password });
+  if (error) {
+    if (/already registered|already exists/i.test(error.message)) return 'already_exists';
+    throw new Error(error.message);
+  }
+  // Supabase returns a user with no identities when the email is already registered (anti-enumeration).
+  if (data.user && (data.user.identities?.length ?? 0) === 0) return 'already_exists';
+  if (data.session) { await tmp.auth.signOut(); return 'created'; }
+  return 'created_needs_confirmation';
+}

@@ -25,8 +25,8 @@ numbering and document templates are independent of storage.
 
 1. Supabase → **SQL Editor** → paste `supabase/schema.sql` → Run (safe to re-run).
 2. Supabase → **Authentication → Users → Add user**: `greenwarriorit19@gmail.com` with a password (this email is
-   pre-registered as the Super Admin in the `users` table). Add further staff the same way after creating them in
-   *Users & Permissions* with the same email.
+   pre-registered as the Super Admin in the `users` table). Every other login is created from inside the app:
+   *Users & Permissions → Add User* asks for an initial password and creates the Supabase Auth account in the same step.
 3. Copy `.env.example` to `.env` and paste the **anon public** key from *Project Settings → API*.
 4. `npm run dev` / `npm run build`. The app now shows a sign-in screen; all data lives in Supabase and changes
    made by one user appear live for the others. Without a `.env` the app runs in browser-local mode.

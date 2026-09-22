@@ -106,6 +106,28 @@ export function UsersPage() {
   const { db, store } = useStore();
   const { run, Messages } = useAction();
   const [edit, setEdit] = useState<User | null>(null);
+  const [password, setPassword] = useState('');
+  const [loginMsg, setLoginMsg] = useState<string | null>(null);
+  const [loginBusy, setLoginBusy] = useState(false);
+  const isNewUser = !!edit && !db.users.some(u => u.id === edit.id);
+  const live = store.mode === 'supabase';
+  const describe = (r: 'created' | 'created_needs_confirmation' | 'already_exists', email: string) =>
+    r === 'created' ? `Login created for ${email}. They can sign in now.` :
+    r === 'created_needs_confirmation' ? `Login created. A confirmation email was sent to ${email}; they must click it before signing in.` :
+    `${email} already has a login; use "Send password reset" if they cannot sign in.`;
+  const saveUser = async () => {
+    if (!edit) return;
+    if (live && isNewUser && password.length < 8) { setLoginMsg('Set an initial password of at least 8 characters.'); return; }
+    const ok = run(() => store.saveUser(edit), 'User saved.');
+    if (ok === undefined) return;
+    if (live && isNewUser) {
+      setLoginBusy(true);
+      try { const r = await store.createLogin(edit.id, password); setLoginMsg(describe(r, edit.email)); setPassword(''); }
+      catch (e) { setLoginMsg(`User saved, but the login was not created: ${e instanceof Error ? e.message : String(e)}`); return; }
+      finally { setLoginBusy(false); }
+    }
+    if (!(live && isNewUser)) setEdit(null);
+  };
   const [roleEdit, setRoleEdit] = useState<RoleDef | null>(null);
   const [isNewRole, setIsNewRole] = useState(false);
   const roles = db.roles;
@@ -124,10 +146,10 @@ export function UsersPage() {
     <>
       <PageHead crumbs="Governance" title="Users, Roles and Permissions" actions={<>
         <button className="btn" onClick={() => { setIsNewRole(true); setRoleEdit({ code: '', name: '', description: '', permissions: [], builtIn: false }); }}>Add Role</button>
-        <button className="btn primary" onClick={() => setEdit({ id: `U-${Date.now().toString(36).toUpperCase()}`, name: '', email: '', role: 'employee', active: true })}>Add User</button>
+        <button className="btn primary" onClick={() => { setLoginMsg(null); setPassword(''); setEdit({ id: `U-${Date.now().toString(36).toUpperCase()}`, name: '', email: '', role: 'employee', active: true }); }}>Add User</button>
       </>} />
       <Messages />
-      <Section title="Users" compact><DataTable rows={db.users} columns={columns} onRowClick={u => setEdit({ ...u })} /></Section>
+      <Section title="Users" compact><DataTable rows={db.users} columns={columns} onRowClick={u => { setLoginMsg(null); setPassword(''); setEdit({ ...u }); }} /></Section>
 
       <Section title="Roles" compact right={<span className="muted small">Click a role to view or edit its permissions</span>}>
         <DataTable rows={roleRows} onRowClick={r => { setIsNewRole(false); setRoleEdit({ code: r.code, name: r.name, description: r.description, permissions: [...r.permissions], builtIn: r.builtIn }); }} columns={[
@@ -154,7 +176,7 @@ export function UsersPage() {
               onClick={() => { const reason = prompt(`Delete user ${edit.name}? Enter a reason:`); if (reason) { const ok = run(() => store.deleteUser(edit.id, reason), 'User deleted.'); if (ok !== undefined) setEdit(null); } }}>
               {blockers.length ? 'Delete (has history — deactivate instead)' : 'Delete User'}
             </button>); })()}
-          <button className="btn ghost" onClick={() => setEdit(null)}>Cancel</button><button className="btn primary" onClick={() => { const ok = run(() => store.saveUser(edit), 'User saved.'); if (ok !== undefined) setEdit(null); }}>Save</button></>}>
+          <button className="btn ghost" onClick={() => { setEdit(null); setLoginMsg(null); setPassword(''); }}>{loginMsg && isNewUser ? 'Close' : 'Cancel'}</button><button className="btn primary" disabled={loginBusy} onClick={saveUser}>{loginBusy ? 'Creating login…' : isNewUser && live ? 'Save & Create Login' : 'Save'}</button></>}>
           <div className="form-grid cols-2">
             <Input label="Full Name" required value={edit.name} onChange={e => setEdit({ ...edit, name: e.target.value })} />
             <Input label="Email" type="email" required value={edit.email} onChange={e => setEdit({ ...edit, email: e.target.value })} />
@@ -162,6 +184,18 @@ export function UsersPage() {
             <Select label="Linked Employee" value={edit.employeeId ?? ''} onChange={e => { const em = store.employee(e.target.value); setEdit({ ...edit, employeeId: e.target.value || undefined, departmentId: em?.departmentId ?? edit.departmentId }); }} placeholder="None" options={db.employees.map(e => ({ value: e.id, label: `${e.name} (${e.employeeCode})` }))} />
             <Select label="Department (for Department Head scope)" value={edit.departmentId ?? ''} onChange={e => setEdit({ ...edit, departmentId: e.target.value || undefined })} placeholder="None" options={db.departments.map(d => ({ value: d.id, label: d.name }))} hint="Create, edit or delete departments under Master Data → Departments" />
             <label className="checkbox field"><input type="checkbox" checked={edit.active} onChange={e => setEdit({ ...edit, active: e.target.checked })} /> Active</label>
+            {live && isNewUser && <Input label="Initial password" type="password" required autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} hint="At least 8 characters. Share it with the person; they can change it with “Forgot password” on the sign-in screen." />}
+            {live && !isNewUser && (
+              <div className="field span-full">
+                <label>Login (Supabase Auth)</label>
+                <div className="btn-row">
+                  <button type="button" className="btn sm" disabled={loginBusy} onClick={async () => { const pw = prompt(`Create a login for ${edit.email}. Enter an initial password (min 8 characters):`); if (!pw) return; setLoginBusy(true); try { setLoginMsg(describe(await store.createLogin(edit.id, pw), edit.email)); } catch (e) { setLoginMsg(e instanceof Error ? e.message : String(e)); } finally { setLoginBusy(false); } }}>Create login</button>
+                  <button type="button" className="btn sm" disabled={loginBusy} onClick={async () => { setLoginBusy(true); try { await store.sendPasswordReset(edit.id); setLoginMsg(`Password reset link emailed to ${edit.email}.`); } catch (e) { setLoginMsg(e instanceof Error ? e.message : String(e)); } finally { setLoginBusy(false); } }}>Send password reset</button>
+                  <span className="hint">Deactivating the user (untick Active) blocks sign-in immediately.</span>
+                </div>
+              </div>
+            )}
+            {loginMsg && <div className="alert" style={{ gridColumn: '1 / -1', marginBottom: 0 }}>{loginMsg}</div>}
           </div>
         </Modal>
       )}

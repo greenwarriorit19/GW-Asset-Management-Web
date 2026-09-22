@@ -115,6 +115,29 @@ export class Store {
     this.setSession({ phase: 'login', email: undefined });
   }
   async resetPassword(email: string) { await sb.resetPassword(email); }
+  /** Creates the Supabase Auth login for an app user (Super Admin only). */
+  async createLogin(userId: string, password: string): Promise<sb.CreateLoginResult> {
+    this.require('users.manage');
+    if (this.mode !== 'supabase') throw new BusinessRuleError('Logins exist only when the app is connected to Supabase.');
+    const u = this.user(userId);
+    if (!u) throw new BusinessRuleError('User not found');
+    if (password.length < 8) throw new BusinessRuleError('Password must be at least 8 characters.');
+    const r = await sb.createAuthUser(u.email.trim(), password);
+    this.snapshotBefore();
+    this.audit(r === 'already_exists' ? 'LOGIN_EXISTS' : 'LOGIN_CREATED', 'User', userId, 'Login credentials for the Asset Management System', u.email);
+    this.commit();
+    return r;
+  }
+  /** Emails a password-reset link to an app user (Super Admin only). */
+  async sendPasswordReset(userId: string) {
+    this.require('users.manage');
+    const u = this.user(userId);
+    if (!u) throw new BusinessRuleError('User not found');
+    await sb.resetPassword(u.email.trim());
+    this.snapshotBefore();
+    this.audit('PASSWORD_RESET_SENT', 'User', userId, 'Password reset link emailed', u.email);
+    this.commit();
+  }
   async updatePassword(password: string) { await sb.updatePassword(password); }
 
   /** Another user changed something: re-read the database once any in-flight save has finished. */
