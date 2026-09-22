@@ -472,14 +472,14 @@ describe('Bulk import (Excel)', () => {
   it('validates rows against the register and within the file, resolving codes or names', async () => {
     const { validateAssets, validateEmployees } = await import('../src/lib/bulk');
     const db = s.getSnapshot();
-    const full = { 'Asset Name': 'Phone A', Category: 'MOB', Manufacturer: 'Samsung', Model: 'A16', 'Serial Number': 'BULK-1', 'IMEI Number': '123', 'SIM Number': '456', 'Purchase Date': '2026-09-01', 'Purchase Cost': '15,000', 'Warranty Start Date': '2026-09-01', 'Warranty Expiry Date': '2027-08-31', Specification: '8 GB', Accessories: 'Charger' };
+    const full = { 'Asset Name': 'Phone A', Category: 'MOB', Manufacturer: 'Samsung', Model: 'A16', 'Serial Number': 'BULK-1', 'IMEI Number': '123', 'Purchase Date': '2026-09-01', 'Purchase Cost': '15,000', 'Warranty Start Date': '2026-09-01', 'Warranty Expiry Date': '2027-08-31', Specification: '8 GB', Accessories: 'Charger' };
     const rows = [
       full,
-      { ...full, 'Asset Name': 'Phone B', Category: 'Mobile Phone', 'Serial Number': 'r58x3a1b2c01', 'IMEI Number': '124', 'SIM Number': '457' },      // serial exists in register
-      { ...full, 'Asset Name': 'Phone C', Category: 'XYZ', 'IMEI Number': '125', 'SIM Number': '458' },                                              // bad category + dup serial within file
-      { ...full, 'Asset Name': '', Manufacturer: '', 'Serial Number': 'BULK-9', 'IMEI Number': '', 'SIM Number': '459', 'Purchase Date': new Date(2026, 8, 5), Accessories: '' },
-      { ...full, 'Asset Name': 'Laptop', Category: 'LAP', 'Serial Number': 'BULK-L', 'IMEI Number': '999', 'SIM Number': '' },                       // IMEI always required; SIM not for laptops
-      { ...full, 'Asset Name': 'Laptop2', Category: 'LAP', 'Serial Number': 'BULK-M', 'IMEI Number': '', 'SIM Number': '' },
+      { ...full, 'Asset Name': 'Phone B', Category: 'Mobile Phone', 'Serial Number': 'r58x3a1b2c01', 'IMEI Number': '124' },      // serial exists in register
+      { ...full, 'Asset Name': 'Phone C', Category: 'XYZ', 'IMEI Number': '125' },                                              // bad category + dup serial within file
+      { ...full, 'Asset Name': '', Manufacturer: '', 'Serial Number': 'BULK-9', 'IMEI Number': '', 'Purchase Date': new Date(2026, 8, 5), Accessories: '' },
+      { ...full, 'Asset Name': 'Laptop', Category: 'LAP', 'Serial Number': 'BULK-L', 'IMEI Number': '999' },                                        // IMEI always required
+      { ...full, 'Asset Name': 'Laptop2', Category: 'LAP', 'Serial Number': 'BULK-M', 'IMEI Number': '' },
     ];
     const v = validateAssets(rows, db);
     expect(v[0].errors).toEqual([]);
@@ -517,7 +517,7 @@ describe('Bulk import (Excel)', () => {
     const XLSX = await import('xlsx');
     const { readSheet, validateAssets, ASSET_COLUMNS } = await import('../src/lib/bulk');
     const headers = ASSET_COLUMNS.map(c => c[1].startsWith('REQUIRED') ? `${c[0]} *` : c[0]);   // as the template writes them
-    const row = ['Excel Phone', 'MOB', 'Samsung', 'A16', 'XL-1', '111', '222', 'Company Owned', 'I', new Date(2026, 8, 1), 12000, '2026-09-01', '2027-08-31', '8 GB', 'Charger', '', ''];
+    const row = ['Excel Phone', 'MOB', 'Samsung', 'A16', 'XL-1', '111', 'Company Owned', 'I', new Date(2026, 8, 1), 12000, '2026-09-01', '2027-08-31', '8 GB', 'Charger', '', ''];
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([headers, row]), 'Assets');
     const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
     const file = { name: 't.xlsx', arrayBuffer: async () => buf } as unknown as File;

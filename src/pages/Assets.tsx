@@ -244,7 +244,6 @@ function AssetForm({ asset, onSaved, onClose }: { asset?: Asset; onSaved: (id: s
           <Input label="Model" required value={f.model} onChange={e => set('model', e.target.value)} />
           <Input label="Serial Number" required value={f.serialNumber} onChange={e => set('serialNumber', e.target.value)} hint="Checked for duplicates" />
           <Input label="IMEI Number" value={f.imei ?? ''} onChange={e => set('imei', e.target.value)} inputMode="numeric" />
-          <Input label="SIM Number" value={f.sim ?? ''} onChange={e => set('sim', e.target.value)} inputMode="numeric" />
           <Input label="Barcode / QR Code" value={f.barcode ?? ''} onChange={e => set('barcode', e.target.value)} hint="Defaults to the Asset ID" />
           <Select label="Ownership Type" required value={f.ownershipType} onChange={e => set('ownershipType', e.target.value as OwnershipType)} options={OWNERSHIP_TYPES.map(o => ({ value: o, label: o }))} />
         </div>
