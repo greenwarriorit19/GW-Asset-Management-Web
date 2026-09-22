@@ -10,16 +10,10 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [info, setInfo] = useState<string | null>(null);
 
   const submit = async (e: FormEvent) => {
-    e.preventDefault(); setBusy(true); setInfo(null);
+    e.preventDefault(); setBusy(true);
     try { await store.login(email.trim(), password); } catch { /* shown via session.error */ } finally { setBusy(false); }
-  };
-  const forgot = async () => {
-    if (!email.trim()) { setInfo('Enter your email first, then click “Forgot Password”.'); return; }
-    try { await store.resetPassword(email.trim()); setInfo(`A password-reset link has been sent to ${email.trim()}.`); }
-    catch (err) { setInfo(err instanceof Error ? err.message : String(err)); }
   };
 
   return (
@@ -29,7 +23,6 @@ export function Login() {
         <p className="signin-heading">Login</p>
 
         {session.error && <div className="signin-msg error">{session.error}</div>}
-        {info && <div className="signin-msg">{info}</div>}
 
         <label className="signin-field">
           <svg className="input-icon" xmlns="http://www.w3.org/2000/svg" width={16} height={16} fill="currentColor" viewBox="0 0 16 16" aria-hidden>
@@ -48,7 +41,6 @@ export function Login() {
 
         <div className="signin-actions">
           <button className="signin-btn primary" type="submit" disabled={busy}>{busy ? <Loader inline /> : 'Login'}</button>
-          <button className="signin-btn" type="button" onClick={forgot} disabled={busy}>Forgot Password</button>
         </div>
 
       </form>
