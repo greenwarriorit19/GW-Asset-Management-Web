@@ -1,7 +1,8 @@
-import type { Database, Asset, AssetStatus, Condition, Transaction } from './types';
-import { BUILT_IN_ROLES } from './permissions';
+import type { Database, Asset, AssetStatus, Condition, Transaction } from '../../src/data/types';
+import { BUILT_IN_ROLES } from '../../src/data/permissions';
 
-// Demonstration dataset. Every asset seeded here is given a REGISTRATION transaction
+// TEST FIXTURE ONLY — demonstration dataset used by the automated tests. Not shipped in the app.
+// Every asset seeded here is given a REGISTRATION transaction
 // so the permanent history starts from day one.
 
 const iso = (d: string, t = '09:30:00') => `${d}T${t}+05:30`;

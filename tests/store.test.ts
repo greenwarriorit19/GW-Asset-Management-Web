@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Store, BusinessRuleError, ROLE_PERMISSIONS } from '../src/data/store';
 import type { Asset } from '../src/data/types';
+import { buildSeed } from './fixtures/demo';
 
 // Users in the demo dataset: U-SA super admin · U-AA asset admin · U-DH-OPS / U-DH-IT dept heads · U-EMP (E-004, OPS) · U-EMP2 (E-006, IT) · U-AUD auditor
 let s: Store;
@@ -29,7 +30,7 @@ beforeEach(() => {
   localStorage.clear();
   s = new Store();
   s.switchUser('U-SA');
-  s.loadDemoData();
+  s.importDatabase(buildSeed());
   asAdmin();
 });
 
@@ -46,9 +47,12 @@ describe('Live start & master data', () => {
     expect(db.categories.length).toBeGreaterThan(0);
     expect(db.auditLogs[0].action).toBe('DATABASE_INITIALISED');
   });
-  it('demo data can be loaded and cleared again', () => {
+  it('a backup can be restored and the database reset to empty again', () => {
     expect(s.getSnapshot().assets.length).toBe(26);
-    s.switchUser('U-SA'); s.startEmpty();
+    expect(() => s.importDatabase('{"users":[]}')).toThrow(/permit/);       // asset admin cannot restore
+    s.switchUser('U-SA');
+    expect(() => s.importDatabase('{"users":[]}')).toThrow(/not valid|Super Admin/);
+    s.startEmpty();
     expect(s.getSnapshot().assets.length).toBe(0);
     expect(s.nextAssetId('C-MOB')).toBe('GW-AST-MOB-0001');
   });

@@ -52,7 +52,7 @@ export function Layout() {
         <div className="spacer" />
         <div className="user">
           <span>{u.name} · {store.roleName(u.role)}</span>
-          <SearchSelect className="topbar-ss" value={u.id} onChange={e => store.switchUser(e.target.value)} title="Switch signed-in user (demonstration)"
+          <SearchSelect className="topbar-ss" value={u.id} onChange={e => store.switchUser(e.target.value)} title="Switch signed-in user"
             options={db.users.filter(x => x.active).map(x => ({ value: x.id, label: `${x.name} — ${store.roleName(x.role)}` }))} />
         </div>
       </header>

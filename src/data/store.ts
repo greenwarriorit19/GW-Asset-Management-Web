@@ -1,4 +1,4 @@
-import { buildSeed } from './seed';
+import { emptyDatabase } from './master';
 import type {
   Database, User, Role, Asset, AssetStatus, Condition, Transaction, TransactionType, Handover, HandoverItem,
   AssetReturn, Transfer, Repair, Incident, Verification, Disposal, Approval, Attachment, Employee, Category,
@@ -11,7 +11,7 @@ const SESSION_KEY = 'gw-asset-management-user';
 export class BusinessRuleError extends Error {}
 
 // ---------- Permissions ----------
-import { BUILT_IN_ROLES, ALL_PERMISSIONS, type Permission, type RoleDef } from './permissions';
+import { ALL_PERMISSIONS, type Permission, type RoleDef } from './permissions';
 export { ROLE_PERMISSIONS, ALL_PERMISSIONS, PERMISSION_GROUPS } from './permissions';
 export type { Permission, RoleDef } from './permissions';
 
@@ -27,17 +27,6 @@ export const addMonths = (dateStr: string, months: number) => {
 
 type Listener = () => void;
 
-/** Live starting point: master lists and the Super Admin login only. */
-function emptyDatabase(): Database {
-  const seed = buildSeed();
-  const admin = seed.users.find(u => u.role === 'super_admin')!;
-  return {
-    ...seed, users: [admin], employees: [], assets: [], transactions: [], handovers: [], returns: [], transfers: [], repairs: [],
-    incidents: [], verifications: [], disposals: [], approvals: [], documents: [],
-    departments: seed.departments.map(d => ({ ...d, headEmployeeId: undefined })),
-    auditLogs: [{ id: 'AL-000001', at: nowIso(), userId: admin.id, userName: admin.name, role: admin.role, action: 'DATABASE_INITIALISED', entityType: 'System', entityId: 'DB', reason: 'System initialised for live use' }],
-  };
-}
 
 export class Store {
   private db: Database;
@@ -56,11 +45,11 @@ export class Store {
       if (raw) {
         const db = JSON.parse(raw) as Database;
         // Migration: older data stored roles as plain codes.
-        if (!db.roles?.length || typeof db.roles[0] === 'string') db.roles = BUILT_IN_ROLES.map(r => ({ ...r, permissions: [...r.permissions] }));
+        if (!db.roles?.length || typeof db.roles[0] === 'string') db.roles = emptyDatabase().roles;
         return db;
       }
     } catch { /* fall through */ }
-    // First run: start LIVE (empty) — master lists + Super Admin only. Demo data is opt-in via Master Data → Data.
+    // First run: start LIVE (empty) — master lists + Super Admin only.
     const db = emptyDatabase();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
     return db;
@@ -75,11 +64,6 @@ export class Store {
   subscribe = (l: Listener) => { this.listeners.add(l); return () => { this.listeners.delete(l); }; };
   getSnapshot = () => this.db;
 
-  resetDemoData() {
-    this.db = buildSeed();
-    this.commit();
-  }
-
   /** Wipes all transactional and mock records. Keeps departments, locations, categories and the Super Admin login. */
   startEmpty() {
     this.require('settings.manage');
@@ -89,10 +73,17 @@ export class Store {
     this.commit();
   }
 
-  /** Loads the demonstration dataset (for training / demos). */
-  loadDemoData() {
+  /** Restores a JSON backup produced by exportJson(). Replaces ALL current data. */
+  importDatabase(input: string | Database) {
     this.require('settings.manage');
-    this.db = buildSeed();
+    const db = typeof input === 'string' ? JSON.parse(input) as Database : input;
+    const required: (keyof Database)[] = ['users', 'roles', 'departments', 'locations', 'categories', 'employees', 'assets', 'transactions', 'handovers', 'auditLogs'];
+    for (const k of required) if (!Array.isArray(db[k])) throw new BusinessRuleError(`Backup file is not valid: missing "${k}".`);
+    if (!db.users.some(u => u.role === 'super_admin' && u.active)) throw new BusinessRuleError('Backup has no active Super Admin; refusing to import.');
+    if (typeof (db.roles as unknown[])[0] === 'string') db.roles = emptyDatabase().roles;
+    this.db = db;
+    if (!this.db.users.some(u => u.id === this.currentUser.id)) this.currentUser = this.db.users.find(u => u.role === 'super_admin')!;
+    this.audit('DATABASE_RESTORED', 'System', 'DB', 'Restored from JSON backup', `${db.assets.length} assets, ${db.transactions.length} transactions`);
     this.commit();
   }
 

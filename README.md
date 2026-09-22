@@ -14,8 +14,7 @@ npm test           # automated test suite (35 tests: every business rule, workfl
 ```
 
 This build runs entirely in the browser with data persisted to `localStorage`. It starts **empty (live)** with the
-master lists and a Super Admin login; **Master Data → Data** can load a demonstration dataset for training and
-clear it again, and has a JSON backup. Attachments upload to a shared Google Drive folder once
+master lists and a Super Admin login. **Master Data → Data** has JSON backup / restore and a reset. Attachments upload to a shared Google Drive folder once
 **Master Data → Google Drive** is configured (OAuth Client ID). Use the user selector in the top bar to switch roles.
 
 For a multi-user deployment, apply `supabase/schema.sql` to a PostgreSQL/Supabase project and replace the
@@ -28,7 +27,8 @@ numbering and document templates are independent of storage.
 |---|---|
 | `src/data/types.ts` | Domain model (assets, transactions, handovers, returns, transfers, repairs, incidents, verifications, disposals, approvals, documents, audit log) |
 | `src/data/store.ts` | Business rules, role permissions, reference numbering, append-only transactions & audit |
-| `src/data/seed.ts` | Demonstration dataset |
+| `src/data/master.ts` | Empty live database: base departments, locations, categories, Super Admin |
+| `tests/fixtures/demo.ts` | Demonstration dataset used only by the automated tests |
 | `src/pages/` | 14 modules (Dashboard, Asset Tracker, Registration, Inventory, Handover, Return, Transfer, Repair, Incidents, Disposal, Reports, Users, Audit Log, Documents) |
 | `src/documents/` | A4 document templates — Registration, Handover, Return (with Inspection), Transfer, Repair, Lost/Damaged, Retirement & Disposal, Asset History, Employee Clearance |
 | `src/components/A4Document.tsx` | Print / PDF / PNG export and QR generation |
