@@ -133,7 +133,12 @@ export async function currentAuthEmail(): Promise<string | undefined> {
 }
 export async function signIn(email: string, password: string) {
   const { error } = await supabase().auth.signInWithPassword({ email, password });
-  if (error) throw new Error(error.message === 'Invalid login credentials' ? 'Incorrect email or password.' : error.message);
+  if (!error) return;
+  const m = error.message;
+  if (/invalid login credentials/i.test(m)) throw new Error(`No login found for ${email} with that password. If this is a new user, the Super Admin must create the login under Users & Permissions (or add the email in Supabase → Authentication → Users). Otherwise use “Forgot Password”.`);
+  if (/email not confirmed/i.test(m)) throw new Error(`${email} has a login, but the confirmation email has not been clicked yet. Confirm it, or ask the Super Admin to switch off “Confirm email” in Supabase → Authentication → Providers.`);
+  if (/too many requests|rate limit/i.test(m)) throw new Error('Too many sign-in attempts. Wait a minute and try again.');
+  throw new Error(m);
 }
 export async function signOut() { await supabase().auth.signOut(); }
 export async function resetPassword(email: string) {
