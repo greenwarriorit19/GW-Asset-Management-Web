@@ -537,10 +537,23 @@ export class Store {
     if (!h) throw new BusinessRuleError('Assignment not found.');
     if (!['Active', 'Awaiting Acknowledgement'].includes(h.status)) throw new BusinessRuleError(`A ${h.status.toLowerCase()} assignment can no longer be edited.`);
     const before = new Map(h.items.map(i => [i.assetId, i]));
-    if (items.length !== h.items.length || items.some(i => !before.has(i.assetId))) {
-      throw new BusinessRuleError('The assets on an assignment cannot be changed. Cancel the assignment and raise a new one instead.');
+    if (items.some(i => !before.has(i.assetId))) {
+      throw new BusinessRuleError('An asset cannot be added to an existing assignment. Raise a new assignment for it instead.');
+    }
+    if (!items.length) throw new BusinessRuleError('Keep at least one asset, or cancel the whole assignment.');
+    const dropped = h.items.filter(i => !items.some(x => x.assetId === i.assetId));
+    for (const it of dropped) {                                   // a dropped asset must still be the one this assignment issued
+      const a = this.asset(it.assetId)!;
+      if (!['Assigned', 'Reserved'].includes(a.status) || (a.custodianEmployeeId && a.custodianEmployeeId !== h.employeeId)) {
+        throw new BusinessRuleError(`${a.id} is ${a.status} and has already moved on; record an Asset Return instead of removing it here.`);
+      }
     }
     this.db.handovers = this.db.handovers.map(x => x.id === id ? { ...x, items } : x);
+    for (const it of dropped) {
+      const a = this.asset(it.assetId)!;
+      this.addTransaction({ type: 'STATUS_CHANGE', assetId: a.id, reference: id, fromEmployeeId: h.employeeId, statusBefore: a.status, statusAfter: 'Available', reason: `Removed from assignment ${id}: ${reason}` });
+      this.setAsset(a.id, { status: 'Available', custodianEmployeeId: undefined });
+    }
     for (const it of items) {
       const was = before.get(it.assetId)!;
       const a = this.asset(it.assetId);
@@ -556,7 +569,7 @@ export class Store {
       // The asset carries the condition it is held in, so a corrected condition follows through.
       if (a && was.condition !== it.condition && a.custodianEmployeeId === h.employeeId) this.setAsset(a.id, { condition: it.condition });
     }
-    this.audit('HANDOVER_UPDATED', 'Handover', id, reason, `${items.length} line(s)`);
+    this.audit('HANDOVER_UPDATED', 'Handover', id, reason, dropped.length ? `${items.length} line(s); released ${dropped.map(d => d.assetId).join(', ')}` : `${items.length} line(s)`);
     this.commit();
   }
 

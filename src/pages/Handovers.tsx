@@ -59,11 +59,11 @@ function HandoverEdit({ handover, onClose }: { handover: Handover; onClose: () =
   return (
     <Modal wide title={`Edit assignment ${handover.id}`} onClose={onClose} footer={<>
       <button className="btn ghost" onClick={onClose}>Cancel</button>
-      <button className="btn primary" disabled={reason.trim().length < 3} onClick={() => { if (run(() => store.updateHandoverItems(handover.id, items, reason), 'Assignment updated.') !== undefined) onClose(); }}>Save Changes</button>
+      <button className="btn primary" disabled={reason.trim().length < 3 || items.length === 0} title={items.length === 0 ? 'Keep at least one asset, or cancel the whole assignment' : undefined} onClick={() => { if (run(() => store.updateHandoverItems(handover.id, items, reason), 'Assignment updated.') !== undefined) onClose(); }}>Save Changes</button>
     </>}>
       <Messages />
-      <p className="muted small" style={{ marginTop: 0 }}>Assigned to <b>{store.employeeName(handover.employeeId)}</b>. Condition, quantity, accessories and remarks can be corrected; the assets themselves cannot be swapped — cancel the assignment and raise a new one for that.</p>
-      <AssetLines items={items} setItems={setItems} />
+      <p className="muted small" style={{ marginTop: 0 }}>Assigned to <b>{store.employeeName(handover.employeeId)}</b>. Condition, quantity, accessories and remarks can be corrected, and an asset can be removed — it goes straight back to <b>Available</b>. Adding a different asset means raising a new assignment.</p>
+      <AssetLines items={items} setItems={setItems} allowRemove />
       <div style={{ marginTop: 12 }}><Input label="Reason for the change" required value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Charger added at handover" hint="Recorded on each amended asset's history." /></div>
     </Modal>
   );

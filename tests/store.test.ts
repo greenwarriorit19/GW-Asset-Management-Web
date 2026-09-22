@@ -116,9 +116,19 @@ describe('Rules 3, 4, 7 — handover', () => {
     expect(s.asset(a.id)!.condition).toBe('Good');
     const tx = s.assetHistory(a.id).find(t => t.type === 'UPDATE')!;
     expect(tx.reason).toMatch(/condition New → Good/);
-    expect(() => s.updateHandoverItems(id, [{ assetId: newAsset().id, condition: 'New', quantity: 1, accessories: '', remarks: '' }], 'swap')).toThrow(/cannot be changed/);
+    expect(() => s.updateHandoverItems(id, [{ assetId: newAsset().id, condition: 'New', quantity: 1, accessories: '', remarks: '' }], 'swap')).toThrow(/cannot be added/);
+    expect(() => s.updateHandoverItems(id, [], 'drop everything')).toThrow(/at least one asset/);
     s.cancelHandover(id, 'No longer needed');
     expect(() => s.updateHandoverItems(id, after.items, 'too late')).toThrow(/can no longer be edited/);
+  });
+  it('removing an asset from an assignment releases it', () => {
+    const a = newAsset(), b = newAsset();
+    const h = s.createHandover({ employeeId: 'E-006', issuedByUserId: 'U-AA', items: [a, b].map(x => ({ assetId: x.id, condition: 'New' as const, quantity: 1, accessories: '', remarks: '' })), reason: 'Two assets issued' });
+    s.updateHandoverItems(h.id, h.items.filter(i => i.assetId === a.id), 'Second phone not needed');
+    expect(s.getSnapshot().handovers.find(x => x.id === h.id)!.items).toHaveLength(1);
+    expect(s.asset(b.id)).toMatchObject({ status: 'Available', custodianEmployeeId: undefined });
+    expect(s.asset(a.id)!.status).toBe('Assigned');
+    expect(s.assetHistory(b.id)[0].reason).toMatch(/Removed from assignment/);
   });
   it('employee logins need the shared database', async () => {
     s.switchUser('U-SA');

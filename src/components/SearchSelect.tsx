@@ -1,4 +1,5 @@
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { createPortal } from 'react-dom';
 
 export interface Option { value: string; label: string }
 export interface SearchSelectProps {
@@ -20,6 +21,7 @@ export function SearchSelect({ value, onChange, options, placeholder, disabled, 
   const [active, setActive] = useState(0);
   const wrap = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLUListElement>(null);
+  const [pos, setPos] = useState<CSSProperties>();   // the open list is rendered in a portal so no card, table or dialog can clip it
   const id = useId();
   const selected = options.find(o => o.value === value);
 
@@ -37,10 +39,26 @@ export function SearchSelect({ value, onChange, options, placeholder, disabled, 
   }, [active]);
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e: MouseEvent) => { if (!wrap.current?.contains(e.target as Node)) close(); };
+    const onDoc = (e: MouseEvent) => { const t = e.target as Node; if (!wrap.current?.contains(t) && !list.current?.contains(t)) close(); };
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
+
+  // Position the portalled list against the input, flipping above it when the space below is too small.
+  useLayoutEffect(() => {
+    if (!open) { setPos(undefined); return; }
+    const place = () => {
+      const r = wrap.current?.getBoundingClientRect();
+      if (!r) return;
+      const below = window.innerHeight - r.bottom - 8, above = r.top - 8;
+      const flip = below < 180 && above > below;
+      setPos({ position: 'fixed', left: r.left, width: Math.max(r.width, 180), maxHeight: Math.min(240, Math.max(flip ? above : below, 120)), zIndex: 200,
+        ...(flip ? { bottom: window.innerHeight - r.top + 2 } : { top: r.bottom + 2 }) });
+    };
+    place();
+    window.addEventListener('scroll', place, true); window.addEventListener('resize', place);
+    return () => { window.removeEventListener('scroll', place, true); window.removeEventListener('resize', place); };
+  }, [open, filtered.length]);
 
   const close = () => { setOpen(false); setQuery(''); };
   const pick = (v: string) => { onChange({ target: { value: v } }); close(); };
@@ -73,8 +91,8 @@ export function SearchSelect({ value, onChange, options, placeholder, disabled, 
       <span className="ss-caret" aria-hidden>▾</span>
       {/* Participates in native form validation without being visible. */}
       {required && <input tabIndex={-1} aria-hidden required value={value} onChange={() => undefined} className="ss-hidden" onInvalid={e => { e.preventDefault(); wrap.current?.querySelector<HTMLInputElement>('.ss-input')?.focus(); setOpen(true); wrap.current?.classList.add('invalid'); }} />}
-      {open && !disabled && (
-        <ul ref={list} id={id} role="listbox" className="ss-list">
+      {open && !disabled && pos && createPortal(
+        <ul ref={list} id={id} role="listbox" className="ss-list ss-pop" style={pos}>
           {filtered.length === 0 && <li className="ss-empty">No matches</li>}
           {filtered.map((o, i) => (
             <li key={o.value} role="option" aria-selected={o.value === value}
@@ -83,8 +101,7 @@ export function SearchSelect({ value, onChange, options, placeholder, disabled, 
               {o.label}
             </li>
           ))}
-        </ul>
-      )}
+        </ul>, document.body)}
     </div>
   );
 }

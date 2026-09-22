@@ -113,11 +113,11 @@ table.matrix td { padding: 5px 10px; }
 .ss .ss-clear { position: absolute; right: 24px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--grey-500); cursor: pointer; font-size: 15px; line-height: 1; padding: 2px 4px; }
 .ss .ss-clear:hover { color: var(--danger); }
 .ss-hidden { position: absolute; opacity: 0; width: 1px; height: 1px; left: 8px; bottom: 0; pointer-events: none; }
-.ss .ss-list { position: absolute; z-index: 60; left: 0; right: 0; top: 100%; margin: 0; padding: 0; list-style: none; background: var(--white); border: 1px solid var(--navy); max-height: 240px; overflow-y: auto; box-shadow: 0 2px 6px rgba(11,31,58,0.12); min-width: 100%; }
-.ss .ss-opt { padding: 7px 10px; font-size: 12.5px; cursor: pointer; border-bottom: 1px solid var(--grey-100); white-space: normal; }
-.ss .ss-opt.active { background: var(--navy-100); }
-.ss .ss-opt.selected { font-weight: 600; color: var(--navy); }
-.ss .ss-empty { padding: 8px 10px; font-size: 12px; color: var(--grey-500); }
+.ss-list { position: absolute; z-index: 60; left: 0; right: 0; top: 100%; margin: 0; padding: 0; list-style: none; background: var(--white); border: 1px solid var(--navy); max-height: 240px; overflow-y: auto; box-shadow: 0 2px 6px rgba(11,31,58,0.12); min-width: 100%; }
+.ss-opt { padding: 7px 10px; font-size: 12.5px; cursor: pointer; border-bottom: 1px solid var(--grey-100); white-space: normal; }
+.ss-opt.active { background: var(--navy-100); }
+.ss-opt.selected { font-weight: 600; color: var(--navy); }
+.ss-empty { padding: 8px 10px; font-size: 12px; color: var(--grey-500); }
 .ss.invalid .ss-input { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
 .ss.tb { width: auto; min-width: 170px; }
 .ss.tb .ss-input { font-size: 12.5px; padding: 6px 40px 6px 8px; min-height: 32px; }
@@ -125,9 +125,9 @@ table.matrix td { padding: 5px 10px; }
 .topbar .ss.topbar-ss .ss-input { background: var(--navy-700); color: var(--white); border-color: rgba(255,255,255,0.25); font-size: 12.5px; min-height: 30px; padding: 5px 40px 5px 8px; }
 .topbar .ss.topbar-ss .ss-input::placeholder { color: rgba(255,255,255,0.7); }
 .topbar .ss.topbar-ss .ss-caret { color: rgba(255,255,255,0.7); }
-.topbar .ss.topbar-ss .ss-list { color: var(--charcoal); }
+
 .modal .modal-body { overflow: visible; }
-table.data td .ss .ss-list { min-width: 160px; }
+
 
 /* ---------- Login & sync ---------- */
 .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--grey-50); padding: 16px; }
@@ -354,7 +354,7 @@ body { background: var(--parchment); background-image: radial-gradient(1200px 60
 .modal { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(16px) saturate(140%); -webkit-backdrop-filter: blur(16px) saturate(140%); border: 1px solid var(--glass-border); border-radius: var(--radius); box-shadow: var(--shadow); }
 .modal .modal-head { border-radius: var(--radius) var(--radius) 0 0; }
 .modal .modal-foot { border-radius: 0 0 var(--radius) var(--radius); }
-.ss .ss-list, .dp .dp-pop { z-index: 80; }
+.ss-list, .dp .dp-pop { z-index: 80; }
 .section > .section-title { background: rgba(112,121,140,0.12); border-bottom: 1px solid rgba(112,121,140,0.25); }
 .metric .value { color: var(--navy); }
 .metric.alert { border-left: 4px solid var(--danger); } .metric.warn { border-left: 4px solid var(--warn); }
@@ -390,8 +390,8 @@ table.data tr:hover td { background: rgba(255,255,255,0.55); }
 .status.s-available { border-color: var(--slate); color: var(--grey-900); background: rgba(255,255,255,0.7); }
 .status.s-reserved, .status.s-under-inspection, .status.s-returned { background: var(--slate-100); color: var(--grey-900); }
 .tabs button { border-radius: var(--radius-sm) var(--radius-sm) 0 0; } .tabs button.active { color: var(--navy); border-bottom-color: var(--navy); }
-.ss .ss-list, .dp .dp-pop { border-radius: var(--radius-sm); border-color: var(--grey-300); box-shadow: var(--shadow); background: rgba(255,255,255,0.96); backdrop-filter: blur(12px); overflow: hidden; }
-.ss .ss-opt.active { background: var(--slate-100); }
+.ss-list, .dp .dp-pop { border-radius: var(--radius-sm); border-color: var(--grey-300); box-shadow: var(--shadow); background: rgba(255,255,255,0.96); backdrop-filter: blur(12px); overflow: hidden; }
+.ss-opt.active { background: var(--slate-100); }
 .dp .dp-day { border-radius: 6px; } .dp .dp-day.selected { background: var(--navy); } .dp .dp-day.today { border-color: var(--slate); }
 .dp .dp-nav { border-radius: 6px; }
 .timeline .type { color: var(--navy); }
@@ -560,3 +560,6 @@ table.data.assign tr.assign-add td:first-child { background: transparent; border
 .assign .btn.rm:hover { border-color: var(--danger); color: var(--danger); background: var(--danger-bg); }
 
 @media (max-width: 1100px) { .assign-card .table-wrap { overflow-x: auto; } table.data.assign { min-width: 900px; } }
+
+/* Open dropdown lists are portalled to <body> and positioned in fixed coordinates, so nothing clips them. */
+.ss-list.ss-pop { position: fixed; right: auto; top: auto; min-width: 180px; overflow-y: auto; color: var(--charcoal); }
