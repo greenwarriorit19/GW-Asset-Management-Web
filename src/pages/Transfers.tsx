@@ -4,7 +4,7 @@ import { useStore } from '../data/context';
 import { CONDITIONS, type Transfer, type Condition } from '../data/types';
 import { PageHead, Section, Status, DataTable, Input, Select, TextArea, ReadOnly, Modal, useAction, fmtDate, type Column } from '../components/ui';
 import { TransferDoc } from '../documents';
-import { ApprovalBox } from './Approvals';
+import { ApprovalBox } from '../components/ApprovalBox';
 
 export function Transfers() {
   const { db, store } = useStore();

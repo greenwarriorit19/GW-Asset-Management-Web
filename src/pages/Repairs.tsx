@@ -5,7 +5,7 @@ import { CONDITIONS, type Repair, type Condition, type Attachment } from '../dat
 import { today } from '../data/store';
 import { PageHead, Section, Status, DataTable, Input, Select, TextArea, ReadOnly, FileInput, Modal, useAction, fmtDate, fmtMoney, type Column } from '../components/ui';
 import { RepairDoc } from '../documents';
-import { ApprovalBox } from './Approvals';
+import { ApprovalBox } from '../components/ApprovalBox';
 
 export function Repairs() {
   const { db, store } = useStore();

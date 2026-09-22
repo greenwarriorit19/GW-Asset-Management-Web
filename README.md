@@ -40,7 +40,7 @@ numbering and document templates are independent of storage.
 | `src/data/supabase.ts` | Supabase client, row mapping, diff-based writes, Realtime subscription, auth |
 | `src/data/master.ts` | Empty live database: base departments, locations, categories, Super Admin |
 | `tests/fixtures/demo.ts` | Demonstration dataset used only by the automated tests |
-| `src/pages/` | 14 modules (Dashboard, Asset Tracker, Registration, Inventory, Handover, Return, Transfer, Repair, Incidents, Disposal, Reports, Users, Audit Log, Documents) |
+| `src/pages/` | 13 modules (Dashboard, Asset Tracker, Registration, Inventory, Handover, Return, Transfer, Repair, Incidents, Disposal, Reports, Users, Audit Log, Documents) |
 | `src/documents/` | A4 document templates — Registration, Handover, Return (with Inspection), Transfer, Repair, Lost/Damaged, Retirement & Disposal, Asset History, Employee Clearance |
 | `src/components/A4Document.tsx` | Print / PDF / PNG export and QR generation |
 | `src/lib/export.ts` | Excel / CSV / PDF report export |

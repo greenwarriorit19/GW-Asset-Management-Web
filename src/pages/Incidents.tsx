@@ -5,7 +5,7 @@ import type { Incident } from '../data/types';
 import { today } from '../data/store';
 import { PageHead, Section, Status, DataTable, Input, Select, TextArea, ReadOnly, Modal, useAction, fmtDate, type Column } from '../components/ui';
 import { IncidentDoc } from '../documents';
-import { ApprovalBox } from './Approvals';
+import { ApprovalBox } from '../components/ApprovalBox';
 
 export function Incidents() {
   const { db, store } = useStore();

@@ -14,7 +14,6 @@ import { Repairs } from './pages/Repairs';
 import { Incidents } from './pages/Incidents';
 import { Disposals } from './pages/Disposals';
 import { Reports } from './pages/Reports';
-import { ApprovalsQueue } from './pages/Approvals';
 import { AuditLogPage, DocumentsPage, UsersPage, SettingsPage } from './pages/Governance';
 import { Login } from './pages/Login';
 
@@ -49,7 +48,6 @@ export default function App() {
         <Routes>
           <Route element={<Layout />}>
             <Route path="/" element={<Dashboard />} />
-            <Route path="/approvals" element={<Guard perm={['handover.approve', 'transfer.approve', 'incident.approve', 'repair.approve', 'disposal.approve', 'settings.manage']}><ApprovalsQueue /></Guard>} />
             <Route path="/track" element={<Tracker />} />
             <Route path="/assets" element={<AssetInventory />} />
             <Route path="/assets/register" element={<Guard perm="asset.register"><AssetRegister /></Guard>} />

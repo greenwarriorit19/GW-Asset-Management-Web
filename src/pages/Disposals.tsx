@@ -5,7 +5,7 @@ import type { Disposal, Attachment } from '../data/types';
 import { today } from '../data/store';
 import { PageHead, Section, Status, DataTable, Input, Select, TextArea, ReadOnly, FileInput, Modal, useAction, fmtDate, fmtMoney, type Column } from '../components/ui';
 import { DisposalDoc } from '../documents';
-import { ApprovalBox } from './Approvals';
+import { ApprovalBox } from '../components/ApprovalBox';
 
 export function Disposals() {
   const { db, store } = useStore();

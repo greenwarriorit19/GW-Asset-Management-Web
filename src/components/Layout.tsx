@@ -18,7 +18,6 @@ export function Layout() {
   const groups: { title: string; items: NavItem[] }[] = [
     { title: 'Overview', items: [
       { to: '/', label: 'Dashboard' },
-      { to: '/approvals', label: 'Approvals', perm: ['handover.approve', 'transfer.approve', 'incident.approve', 'repair.approve', 'disposal.approve', 'settings.manage'], badge: db.approvals.filter(a => a.decision === 'Pending Approval').length },
     ] },
     { title: 'Assets', items: [
       { to: '/track', label: 'Asset Tracker' },

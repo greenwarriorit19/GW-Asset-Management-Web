@@ -4,7 +4,7 @@ import { useStore } from '../data/context';
 import { CONDITIONS, type Handover, type HandoverItem, type Condition } from '../data/types';
 import { PageHead, Section, Status, DataTable, Input, Select, SearchSelect, TextArea, ReadOnly, Alert, useAction, fmtDate, fmtDateTime, type Column } from '../components/ui';
 import { HandoverDoc, ClearanceDoc } from '../documents';
-import { ApprovalBox } from './Approvals';
+import { ApprovalBox } from '../components/ApprovalBox';
 
 const ACK = 'I acknowledge that I have received the company assets listed above in the stated condition. I accept responsibility for their proper use, protection and return in accordance with company policy. I will immediately report any loss, damage or malfunction.';
 
