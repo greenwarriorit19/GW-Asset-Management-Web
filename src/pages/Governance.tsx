@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/context';
 import { type AuditLog, type AssetDocument, type Attachment, type User, type Role, type Employee, type Category, type Department, type Location, type RoleDef } from '../data/types';
 import { PERMISSION_GROUPS, type Permission } from '../data/store';
-import { PageHead, Section, Status, DataTable, Input, Select, SearchSelect, FileInput, AttachmentLink, Modal, RowActions, useAction, fmtDateTime, fmtSize, type Column } from '../components/ui';
+import { PageHead, Section, Status, DataTable, Input, Select, SearchSelect, FileInput, AttachmentLink, Modal, RowActions, useAction, fmtDateTime, fmtSize, type Column, DateInput } from '../components/ui';
 import { getDriveConfig, setDriveConfig, testDriveConnection, signOutDrive, DEFAULT_FOLDER_ID, type DriveConfig } from '../lib/drive';
 import { exportRows } from '../lib/export';
 import { askReason, askConfirm } from '../components/Dialog';
@@ -330,7 +330,7 @@ export function SettingsPage() {
           <Input label="ERP ID" value={emp.erpId ?? ''} onChange={e => setEmp({ ...emp, erpId: e.target.value })} hint="Reference in the ERP / payroll system" />
           <Input label="Designation" required value={emp.designation} onChange={e => setEmp({ ...emp, designation: e.target.value })} />
           <Select label="Department" value={emp.departmentId} onChange={e => setEmp({ ...emp, departmentId: e.target.value })} options={db.departments.map(d => ({ value: d.id, label: d.name }))} />
-          <Input label="Date of Joining" type="date" value={emp.dateOfJoining} onChange={e => setEmp({ ...emp, dateOfJoining: e.target.value })} />
+          <DateInput label="Date of Joining" value={emp.dateOfJoining} onChange={e => setEmp({ ...emp, dateOfJoining: e.target.value })} />
           <Select label="Work Location" value={emp.workLocationId} onChange={e => setEmp({ ...emp, workLocationId: e.target.value })} options={db.locations.map(l => ({ value: l.id, label: l.name }))} />
           <Input label="Mobile Number" value={emp.mobile} onChange={e => setEmp({ ...emp, mobile: e.target.value })} />
           <Input label="Email Address" type="email" value={emp.email} onChange={e => setEmp({ ...emp, email: e.target.value })} />

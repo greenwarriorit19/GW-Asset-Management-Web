@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useStore } from '../data/context';
 import { ASSET_STATUSES, CONDITIONS, OWNERSHIP_TYPES, type Asset, type Attachment, type Condition, type OwnershipType } from '../data/types';
 import { today } from '../data/store';
-import { PageHead, Section, Status, DataTable, Input, Select, SearchSelect, TextArea, FileInput, AttachmentLink, ReadOnly, Modal, Alert, useAction, fmtDate, fmtDateTime, fmtMoney, fmtSize, type Column } from '../components/ui';
+import { PageHead, Section, Status, DataTable, Input, Select, SearchSelect, TextArea, FileInput, AttachmentLink, ReadOnly, Modal, Alert, useAction, fmtDate, fmtDateTime, fmtMoney, fmtSize, type Column, DateInput } from '../components/ui';
 import { useQr, assetUrl } from '../components/A4Document';
 import { RegistrationDoc, AssetHistoryDoc } from '../documents';
 import { exportRows } from '../lib/export';
@@ -253,10 +253,10 @@ function AssetForm({ asset, onSaved, onClose }: { asset?: Asset; onSaved: (id: s
         <div className="form-grid">
           <Input label="Invoice Number" required value={f.invoiceNumber} onChange={e => set('invoiceNumber', e.target.value)} />
           <Input label="Purchase Order Number" value={f.poNumber} onChange={e => set('poNumber', e.target.value)} />
-          <Input label="Purchase Date" type="date" required value={f.purchaseDate} onChange={e => set('purchaseDate', e.target.value)} />
+          <DateInput label="Purchase Date" required value={f.purchaseDate} onChange={e => set('purchaseDate', e.target.value)} />
           <Input label="Purchase Cost (₹)" type="number" min={0} required value={f.purchaseCost} onChange={e => set('purchaseCost', e.target.value)} />
-          <Input label="Warranty Start Date" type="date" value={f.warrantyStart ?? ''} onChange={e => set('warrantyStart', e.target.value)} />
-          <Input label="Warranty Expiry Date" type="date" value={f.warrantyExpiry ?? ''} onChange={e => set('warrantyExpiry', e.target.value)} />
+          <DateInput label="Warranty Start Date" value={f.warrantyStart ?? ''} onChange={e => set('warrantyStart', e.target.value)} />
+          <DateInput label="Warranty Expiry Date" value={f.warrantyExpiry ?? ''} onChange={e => set('warrantyExpiry', e.target.value)} />
         </div>
       </Section>
       <Section title="Allocation">

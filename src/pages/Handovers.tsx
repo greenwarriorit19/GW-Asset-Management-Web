@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/context';
 import { CONDITIONS, type Handover, type HandoverItem, type Condition } from '../data/types';
-import { PageHead, Section, Status, DataTable, Input, Select, SearchSelect, TextArea, ReadOnly, Alert, useAction, fmtDate, fmtDateTime, type Column } from '../components/ui';
+import { PageHead, Section, Status, DataTable, Input, Select, SearchSelect, TextArea, ReadOnly, Alert, useAction, fmtDate, fmtDateTime, type Column, DateInput } from '../components/ui';
 import { HandoverDoc, ClearanceDoc } from '../documents';
 import { ApprovalBox } from '../components/ApprovalBox';
 
@@ -142,7 +142,7 @@ export function HandoverNew() {
             <ReadOnly label="Handover Reference No" value={store.nextRef('HO', db.handovers)} />
             <ReadOnly label="Handover Date" value={fmtDate(new Date().toISOString())} />
             <Select label="Issued By" required value={issuedBy} onChange={e => setIssuedBy(e.target.value)} options={db.users.filter(u => ['asset_admin', 'super_admin'].includes(u.role)).map(u => ({ value: u.id, label: u.name }))} />
-            <Input label="Expected Return Date" type="date" value={expected} onChange={e => setExpected(e.target.value)} hint="Leave blank for permanent issue" />
+            <DateInput label="Expected Return Date" value={expected} onChange={e => setExpected(e.target.value)} hint="Leave blank for permanent issue" />
             <Input label="Purpose or Project" required span={2} value={purpose} onChange={e => setPurpose(e.target.value)} />
             <Input label="Location of Use" required span={2} value={locationOfUse} onChange={e => setLocationOfUse(e.target.value)} />
           </div>

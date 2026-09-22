@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/context';
 import { CONDITIONS, type Repair, type Condition, type Attachment } from '../data/types';
 import { today } from '../data/store';
-import { PageHead, Section, Status, DataTable, Input, Select, TextArea, ReadOnly, FileInput, Modal, useAction, fmtDate, fmtMoney, type Column } from '../components/ui';
+import { PageHead, Section, Status, DataTable, Input, Select, TextArea, ReadOnly, FileInput, Modal, useAction, fmtDate, fmtMoney, type Column, DateInput } from '../components/ui';
 import { RepairDoc } from '../documents';
 import { ApprovalBox } from '../components/ApprovalBox';
 
@@ -68,7 +68,7 @@ export function Repairs() {
               <TextArea label="Fault Description" required span={2} value={fault} onChange={e => setFault(e.target.value)} />
               <Input label="Vendor / Service Centre" required value={vendor} onChange={e => setVendor(e.target.value)} />
               <Input label="Estimated Cost (₹)" type="number" min={0} required value={est} onChange={e => setEst(e.target.value)} />
-              <Input label="Expected Return Date" type="date" value={expected} onChange={e => setExpected(e.target.value)} />
+              <DateInput label="Expected Return Date" value={expected} onChange={e => setExpected(e.target.value)} />
               <FileInput label="Quotation" accept=".pdf,image/*" tag={assetId || undefined} kind="Repair-Quotation" onChange={setQuotation} />
               <Input label="Reason" required span={2} value={reason} onChange={e => setReason(e.target.value)} />
             </div>
@@ -85,7 +85,7 @@ export function Repairs() {
             <Section title="Record Completion & Post-repair Inspection">
               <div className="form-grid">
                 <Input label="Actual Cost (₹)" type="number" min={0} required value={actual} onChange={e => setActual(e.target.value)} />
-                <Input label="Completion Date" type="date" required value={completion} onChange={e => setCompletion(e.target.value)} />
+                <DateInput label="Completion Date" required value={completion} onChange={e => setCompletion(e.target.value)} />
                 <Select label="Condition after Repair" value={condAfter} onChange={e => setCondAfter(e.target.value as Condition)} options={CONDITIONS.map(c => ({ value: c, label: c }))} />
                 <TextArea label="Work Done" required span={2} value={work} onChange={e => setWork(e.target.value)} />
                 <Select label="Outcome Status" value={outcome ?? ''} onChange={e => setOutcome(e.target.value as Repair['outcome'])} options={[{ value: 'Available', label: 'Available (return to pool)' }, { value: 'Assigned', label: `Assigned (back to ${store.employeeName(current.custodianBeforeRepair)})` }, { value: 'Retired', label: 'Retired (not economical)' }]} />

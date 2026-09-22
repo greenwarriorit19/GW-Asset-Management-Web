@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/context';
 import type { Incident } from '../data/types';
 import { today } from '../data/store';
-import { PageHead, Section, Status, DataTable, Input, Select, TextArea, ReadOnly, Modal, useAction, fmtDate, type Column } from '../components/ui';
+import { PageHead, Section, Status, DataTable, Input, Select, TextArea, ReadOnly, Modal, useAction, fmtDate, type Column, DateInput } from '../components/ui';
 import { IncidentDoc } from '../documents';
 import { ApprovalBox } from '../components/ApprovalBox';
 
@@ -58,7 +58,7 @@ export function Incidents() {
               <Select label="Asset" required span={2} value={assetId} onChange={e => { setAssetId(e.target.value); const a = store.asset(e.target.value); if (a?.custodianEmployeeId) setReportedBy(a.custodianEmployeeId); }} placeholder="Select asset…" options={candidates.map(a => ({ value: a.id, label: `${a.id} — ${a.name} · ${store.employeeName(a.custodianEmployeeId)}` }))} />
               <Select label="Incident Type" required value={type} onChange={e => setType(e.target.value as 'Lost' | 'Damaged')} options={[{ value: 'Damaged', label: 'Damaged' }, { value: 'Lost', label: 'Lost' }]} />
               <ReadOnly label="Incident Reference" value={store.nextRef('INC', db.incidents)} />
-              <Input label="Incident Date" type="date" required value={date} onChange={e => setDate(e.target.value)} />
+              <DateInput label="Incident Date" required value={date} onChange={e => setDate(e.target.value)} />
               <Select label="Reported By (Employee)" required value={reportedBy} onChange={e => setReportedBy(e.target.value)} placeholder="Select…" options={db.employees.map(e => ({ value: e.id, label: `${e.name} (${e.employeeCode})` }))} disabled={u.role === 'employee'} />
               <Input label="Location of Incident" required value={location} onChange={e => setLocation(e.target.value)} />
               <Input label="Police / FIR Reference" value={police} onChange={e => setPolice(e.target.value)} hint="Required for lost mobile devices" />

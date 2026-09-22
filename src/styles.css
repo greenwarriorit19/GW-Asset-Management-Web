@@ -141,6 +141,31 @@ table.data td .ss .ss-list { min-width: 160px; }
 .topbar .btn.signout { border-color: rgba(255,255,255,0.4); color: #fff; background: transparent; }
 .topbar .btn.signout:hover { background: var(--navy-700); }
 
+/* ---------- Calendar date picker ---------- */
+.dp { position: relative; width: 100%; }
+.dp .dp-input { font-family: inherit; font-size: 13px; color: var(--charcoal); background: var(--white); border: 1px solid var(--grey-300); padding: 7px 52px 7px 9px; width: 100%; min-height: 34px; border-radius: 0; }
+.dp .dp-input:focus { outline: none; border-color: var(--navy); box-shadow: 0 0 0 1px var(--navy); }
+.dp.disabled .dp-input { background: var(--grey-100); color: var(--grey-700); }
+.dp.invalid .dp-input { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
+.dp .dp-icon { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); color: var(--grey-500); font-size: 13px; pointer-events: none; }
+.dp .dp-clear { position: absolute; right: 26px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--grey-500); cursor: pointer; font-size: 15px; line-height: 1; padding: 2px 4px; }
+.dp .dp-clear:hover { color: var(--danger); }
+.dp .dp-pop { position: absolute; z-index: 60; top: 100%; left: 0; margin-top: 2px; width: 296px; background: var(--white); border: 1px solid var(--navy); box-shadow: 0 2px 8px rgba(11,31,58,0.14); padding: 10px; }
+.dp .dp-head { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+.dp .dp-head select { flex: 1; font-family: inherit; font-size: 12.5px; padding: 4px 6px; border: 1px solid var(--grey-300); background: var(--white); min-width: 0; }
+.dp .dp-nav { font-family: inherit; font-size: 16px; line-height: 1; width: 28px; height: 28px; border: 1px solid var(--grey-300); background: var(--white); color: var(--navy); cursor: pointer; }
+.dp .dp-nav:hover { background: var(--navy-100); }
+.dp .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.dp .dp-dow { text-align: center; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--grey-700); padding: 4px 0 6px; border-bottom: 1px solid var(--grey-200); margin-bottom: 4px; }
+.dp .dp-day { font-family: inherit; font-size: 12.5px; height: 32px; border: 1px solid transparent; background: none; color: var(--charcoal); cursor: pointer; font-variant-numeric: tabular-nums; }
+.dp .dp-day:hover { background: var(--navy-100); border-color: var(--grey-300); }
+.dp .dp-day.other { color: var(--grey-300); }
+.dp .dp-day.today { border-color: var(--navy); font-weight: 600; }
+.dp .dp-day.selected { background: var(--navy); color: var(--white); font-weight: 600; }
+.dp .dp-day.off { color: var(--grey-300); cursor: not-allowed; }
+.dp .dp-foot { display: flex; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--grey-200); }
+.modal .dp .dp-pop { position: absolute; }
+
 /* ---------- Buttons ---------- */
 .btn { font-family: inherit; font-size: 12.5px; font-weight: 500; padding: 7px 14px; border: 1px solid var(--navy); background: var(--white); color: var(--navy); cursor: pointer; border-radius: 0; line-height: 1.2; white-space: nowrap; }
 .btn:hover { background: var(--navy-100); }

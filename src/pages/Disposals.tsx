@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/context';
 import type { Disposal, Attachment } from '../data/types';
 import { today } from '../data/store';
-import { PageHead, Section, Status, DataTable, Input, Select, TextArea, ReadOnly, FileInput, Modal, useAction, fmtDate, fmtMoney, type Column } from '../components/ui';
+import { PageHead, Section, Status, DataTable, Input, Select, TextArea, ReadOnly, FileInput, Modal, useAction, fmtDate, fmtMoney, type Column, DateInput } from '../components/ui';
 import { DisposalDoc } from '../documents';
 import { ApprovalBox } from '../components/ApprovalBox';
 
@@ -71,7 +71,7 @@ export function Disposals() {
             <Section title="Record Disposal">
               <div className="form-grid">
                 <Select label="Disposal Method" required value={d.disposalMethod ?? ''} onChange={e => setD({ ...d, disposalMethod: e.target.value as Disposal['disposalMethod'] })} options={['Sale', 'Scrap', 'Donation', 'Return to Lessor', 'E-Waste Vendor', 'Write Off'].map(m => ({ value: m, label: m }))} />
-                <Input label="Disposal Date" type="date" required value={d.disposalDate} onChange={e => setD({ ...d, disposalDate: e.target.value })} />
+                <DateInput label="Disposal Date" required value={d.disposalDate} onChange={e => setD({ ...d, disposalDate: e.target.value })} />
                 <Input label="Realised Value (₹)" type="number" min={0} value={d.disposalValue} onChange={e => setD({ ...d, disposalValue: e.target.value })} />
                 <Input label="Vendor / Recipient" value={d.disposalVendor} onChange={e => setD({ ...d, disposalVendor: e.target.value })} />
                 <FileInput label="Proof of Disposal (required)" accept=".pdf,image/*" tag={current.assetId} kind="Disposal-Proof" onChange={setProof} required />

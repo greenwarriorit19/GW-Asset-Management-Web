@@ -2,6 +2,7 @@ import { useState, type ReactNode, type ChangeEvent } from 'react';
 import type { Attachment } from '../data/types';
 import { SearchSelect, type Option } from './SearchSelect';
 import { askReason } from './Dialog';
+import { DatePicker, type DatePickerProps } from './DatePicker';
 import { driveEnabled, uploadToDrive, driveFileName } from '../lib/drive';
 export { SearchSelect };
 
@@ -72,6 +73,17 @@ export function Select({ label, required, hint, span, className, options, placeh
     <div className={`field ${spanClass(span)} ${className ?? ''}`}>
       <label>{label}{required && <span className="req">*</span>}</label>
       <SearchSelect value={value} onChange={onChange} options={options} placeholder={placeholder} required={required} disabled={disabled} />
+      {hint && <span className="hint">{hint}</span>}
+    </div>
+  );
+}
+
+/** Calendar date field (replaces <input type="date">). */
+export function DateInput({ label, required, hint, span, className, ...rest }: FieldBase & DatePickerProps) {
+  return (
+    <div className={`field ${spanClass(span)} ${className ?? ''}`}>
+      <label>{label}{required && <span className="req">*</span>}</label>
+      <DatePicker required={required} {...rest} />
       {hint && <span className="hint">{hint}</span>}
     </div>
   );
