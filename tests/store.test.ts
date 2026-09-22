@@ -11,6 +11,7 @@ const newAsset = (over: Partial<Parameters<Store['registerAsset']>[0]> = {}) => 
   asAdmin();
   return s.registerAsset({
     categoryId: 'C-MOB', name: 'Test Phone', manufacturer: 'Samsung', model: 'A16', serialNumber: `SN-${Math.random().toString(36).slice(2, 10)}`,
+    imei: `IM-${Math.random().toString(36).slice(2, 10)}`,
     ownershipType: 'Company Owned', supplierName: 'Supplier', invoiceNumber: 'INV-1', poNumber: 'PO-1', purchaseDate: '2026-09-01', purchaseCost: 15000,
     condition: 'New', departmentId: 'D-ADM', locationId: 'L-HO', reason: 'New asset received', ...over,
   });
@@ -84,6 +85,13 @@ describe('Rule 1 & 2 — unique Asset ID, duplicate serial / IMEI / SIM', () => 
 });
 
 describe('Rules 3, 4, 7 — handover', () => {
+  it('the category decides which identifiers are required', () => {
+    expect(() => s.registerAsset({ categoryId: 'C-SIM', name: 'Airtel connection', manufacturer: 'Airtel', model: 'Prepaid', serialNumber: '', ownershipType: 'Company Owned', supplierName: '', invoiceNumber: 'I', poNumber: '', purchaseDate: '2026-09-01', purchaseCost: 200, condition: 'New', departmentId: 'D-ADM', locationId: 'L-HO', reason: 'New SIM' })).toThrow(/SIM Number .* required for SIM Card/);
+    const sim = s.registerAsset({ categoryId: 'C-SIM', name: 'Airtel connection', manufacturer: 'Airtel', model: 'Prepaid', serialNumber: '', sim: '9876500001', ownershipType: 'Company Owned', supplierName: '', invoiceNumber: 'I', poNumber: '', purchaseDate: '2026-09-01', purchaseCost: 200, condition: 'New', departmentId: 'D-ADM', locationId: 'L-HO', reason: 'New SIM' });
+    expect(sim.sim).toBe('9876500001');                                   // a SIM needs its number, not a serial
+    expect(() => newAsset({ imei: undefined })).toThrow(/IMEI Number is required for Mobile Phone/);
+    expect(newAsset({ categoryId: 'C-LAP', imei: undefined }).id).toMatch(/GW-AST-LAP-/);   // a laptop needs neither
+  });
   it('only Available assets can be issued', () => {
     expect(() => s.createHandover({ employeeId: 'E-006', issuedByUserId: 'U-AA', items: [{ assetId: 'GW-AST-MOB-0001', condition: 'Good', quantity: 1, accessories: '', remarks: '' }], reason: 'test req' })).toThrow(/Rule 4/);
   });
@@ -499,8 +507,8 @@ describe('Bulk import (Excel)', () => {
       { ...full, 'Asset Name': 'Phone B', Category: 'Mobile Phone', 'Serial Number': 'r58x3a1b2c01', 'IMEI Number': '124' },      // serial exists in register
       { ...full, 'Asset Name': 'Phone C', Category: 'XYZ', 'IMEI Number': '125' },                                              // bad category + dup serial within file
       { ...full, 'Asset Name': '', Manufacturer: '', 'Serial Number': 'BULK-9', 'IMEI Number': '', 'Purchase Date': new Date(2026, 8, 5), Accessories: '' },
-      { ...full, 'Asset Name': 'Laptop', Category: 'LAP', 'Serial Number': 'BULK-L', 'IMEI Number': '999' },                                        // IMEI always required
-      { ...full, 'Asset Name': 'Laptop2', Category: 'LAP', 'Serial Number': 'BULK-M', 'IMEI Number': '' },
+      { ...full, 'Asset Name': 'Laptop', Category: 'LAP', 'Serial Number': 'BULK-L', 'IMEI Number': '' },                    // a laptop has no IMEI
+      { ...full, 'Asset Name': 'SIM 1', Category: 'SIM', 'Serial Number': 'BULK-M', 'IMEI Number': '', 'SIM Number': '' },    // a SIM card must carry its number
     ];
     const v = validateAssets(rows, db);
     expect(v[0].errors).toEqual([]);
@@ -509,7 +517,7 @@ describe('Bulk import (Excel)', () => {
     expect(v[2].errors.join()).toMatch(/Category "XYZ" not found/); expect(v[2].errors.join()).toMatch(/Serial BULK-1 already exists/);
     expect(v[3].errors.join()).toMatch(/Asset Name is required/); expect(v[3].errors.join()).toMatch(/IMEI Number is required/); expect(v[3].errors.join()).toMatch(/Accessories is required/); expect(v[3].data.purchaseDate).toBe('2026-09-05');
     expect(v[4].errors).toEqual([]);
-    expect(v[5].errors).toEqual(['IMEI Number is required']);
+    expect(v[5].errors.join()).toMatch(/SIM Number is required/);
     const e = validateEmployees([{ 'Employee Name': 'New Person', Designation: 'Driver', Department: 'OPS', 'Work Location': 'PM Zone Depot', Active: 'no' }, { 'Employee ID': 'GW-EMP-0001', 'Employee Name': 'Dup', Designation: 'x', Department: 'OPS', 'Work Location': 'PM' }], db);
     expect(e[0].errors).toEqual([]); expect(e[0].data).toMatchObject({ departmentId: 'D-OPS', workLocationId: 'L-PM', active: false });
     expect(e[1].errors.join()).toMatch(/already exists/);
@@ -538,7 +546,7 @@ describe('Bulk import (Excel)', () => {
     const XLSX = await import('xlsx');
     const { readSheet, validateAssets, ASSET_COLUMNS } = await import('../src/lib/bulk');
     const headers = ASSET_COLUMNS.map(c => c[1].startsWith('REQUIRED') ? `${c[0]} *` : c[0]);   // as the template writes them
-    const row = ['Excel Phone', 'MOB', 'Samsung', 'A16', 'XL-1', '111', 'Company Owned', 'I', new Date(2026, 8, 1), 12000, '2026-09-01', '2027-08-31', '8 GB', 'Charger', '', ''];
+    const row = ['Excel Phone', 'MOB', 'Samsung', 'A16', 'XL-1', '111', '', 'Company Owned', 'I', new Date(2026, 8, 1), 12000, '2026-09-01', '2027-08-31', '8 GB', 'Charger', '', ''];
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([headers, row]), 'Assets');
     const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
     const file = { name: 't.xlsx', arrayBuffer: async () => buf } as unknown as File;

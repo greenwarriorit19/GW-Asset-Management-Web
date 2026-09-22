@@ -1,10 +1,12 @@
 // Excel bulk import: template generation, parsing and row validation for assets and employees.
 import type { Database, Condition, OwnershipType } from '../data/types';
 import { OWNERSHIP_TYPES } from '../data/types';
+import { identifierNeeds } from './categoryFields';
 
 export const ASSET_COLUMNS = [
   ['Asset Name', 'REQUIRED'], ['Category', 'REQUIRED — code or name, e.g. MOB or Mobile Phone'], ['Manufacturer', 'REQUIRED'], ['Model', 'REQUIRED'],
-  ['Serial Number', 'REQUIRED — must be unique'], ['IMEI Number', 'REQUIRED — must be unique'],   ['Ownership Type', `optional — one of: ${OWNERSHIP_TYPES.join(', ')} (default Company Owned)`], ['Invoice Number', 'optional'],
+  ['Serial Number', 'REQUIRED — must be unique (optional for SIM cards)'], ['IMEI Number', 'REQUIRED for phones; optional for tablets / GPS / cameras; leave blank otherwise'],
+  ['SIM Number', 'REQUIRED for SIM cards; optional where a SIM is fitted; leave blank otherwise'],   ['Ownership Type', `optional — one of: ${OWNERSHIP_TYPES.join(', ')} (default Company Owned)`], ['Invoice Number', 'optional'],
   ['Purchase Date', 'REQUIRED — date (YYYY-MM-DD or Excel date)'], ['Purchase Cost', 'REQUIRED — number in ₹'], ['Warranty Start Date', 'REQUIRED — date'], ['Warranty Expiry Date', 'REQUIRED — date'],
   ['Specification', 'REQUIRED'], ['Accessories', 'REQUIRED — comma-separated, e.g. Charger - Moto 33W, Back case x2'], ['Maintenance Notes', 'optional'], ['Remarks', 'optional'],
 ] as const;
@@ -57,7 +59,8 @@ function lookup(list: { id: string; code: string; name: string }[], v: unknown):
 export function validateAssets(rows: Record<string, unknown>[], db: Database): Parsed<AssetRow>[] {
   const serials = new Set(db.assets.map(a => a.serialNumber.toUpperCase()));
   const imeis = new Set(db.assets.map(a => (a.imei ?? '').toUpperCase()).filter(Boolean));
-  const seenS = new Set<string>(), seenI = new Set<string>();
+  const sims = new Set(db.assets.map(a => (a.sim ?? '').toUpperCase()).filter(Boolean));
+  const seenS = new Set<string>(), seenI = new Set<string>(), seenM = new Set<string>();
   return rows.map((raw, i) => {
     const e: string[] = [];
     const g = (n: string) => norm(findCol(raw, n));
@@ -65,11 +68,16 @@ export function validateAssets(rows: Record<string, unknown>[], db: Database): P
     // Allocation (department / location / custodian) is set when the asset is assigned; new assets register as Available / New.
     const dept = db.departments[0]?.id, loc = db.locations[0]?.id;
     if (!dept || !loc) e.push('No departments / locations defined in Master Data');
-    for (const f of ['Asset Name', 'Manufacturer', 'Model', 'Serial Number', 'Purchase Date', 'Purchase Cost', 'Warranty Start Date', 'Warranty Expiry Date', 'Specification', 'Accessories']) if (!g(f)) e.push(`${f} is required`);
-    if (!g('IMEI Number')) e.push('IMEI Number is required');
-    const sn = g('Serial Number').toUpperCase(), imei = g('IMEI Number').toUpperCase();
-    if (sn && (serials.has(sn) || seenS.has(sn))) e.push(`Serial ${sn} already exists`); seenS.add(sn);
+    for (const f of ['Asset Name', 'Manufacturer', 'Model', 'Purchase Date', 'Purchase Cost', 'Warranty Start Date', 'Warranty Expiry Date', 'Specification', 'Accessories']) if (!g(f)) e.push(`${f} is required`);
+    // Which identifiers are demanded depends on the category: a SIM card needs its number, a phone its IMEI.
+    const need = identifierNeeds(db.categories.find(c => c.id === cat));
+    if (need.serial === 'required' && !g('Serial Number')) e.push('Serial Number is required');
+    if (need.imei === 'required' && !g('IMEI Number')) e.push(`IMEI Number is required for ${g('Category')}`);
+    if (need.sim === 'required' && !g('SIM Number')) e.push(`SIM Number is required for ${g('Category')}`);
+    const sn = g('Serial Number').toUpperCase(), imei = g('IMEI Number').toUpperCase(), sim = g('SIM Number').toUpperCase();
+    if (sn && (serials.has(sn) || seenS.has(sn))) e.push(`Serial ${sn} already exists`); if (sn) seenS.add(sn);
     if (imei && (imeis.has(imei) || seenI.has(imei))) e.push(`IMEI ${imei} already exists`); if (imei) seenI.add(imei);
+    if (sim && (sims.has(sim) || seenM.has(sim))) e.push(`SIM ${sim} already exists`); if (sim) seenM.add(sim);
     const own = OWNERSHIP_TYPES.find(o => key(o) === key(g('Ownership Type'))) ?? (g('Ownership Type') ? undefined : 'Company Owned');
     if (!own) e.push(`Ownership Type "${g('Ownership Type')}" invalid`);
     const cond: Condition = 'New';
@@ -79,7 +87,8 @@ export function validateAssets(rows: Record<string, unknown>[], db: Database): P
     const we = toDate(findCol(raw, 'Warranty Expiry Date')); if (g('Warranty Expiry Date') && !we) e.push('Warranty Expiry Date not recognised');
     const data: AssetRow = {
       name: g('Asset Name'), categoryId: cat ?? '', manufacturer: g('Manufacturer'), model: g('Model'), serialNumber: g('Serial Number'),
-      imei: g('IMEI Number') || undefined, sim: undefined, barcode: undefined,   // SIM cards are registered as their own assets
+      imei: need.imei === 'hidden' ? undefined : g('IMEI Number') || undefined,
+      sim: need.sim === 'hidden' ? undefined : g('SIM Number') || undefined, barcode: undefined,
       ownershipType: (own ?? 'Company Owned') as OwnershipType, supplierName: '', invoiceNumber: g('Invoice Number'), poNumber: '',
       purchaseDate: pd ?? '', purchaseCost: isNaN(cost) ? 0 : cost, warrantyStart: ws, warrantyExpiry: we,
       funding: undefined, condition: cond, departmentId: dept ?? '', locationId: loc ?? '',
@@ -121,7 +130,7 @@ export async function downloadTemplate(db: Database) {
   const XLSX = await import('xlsx');
   const wb = XLSX.utils.book_new();
   const assetHeaders = ASSET_COLUMNS.map(c => c[0]);
-  const example = ['Samsung Galaxy A35', 'MOB', 'Samsung', 'SM-A356E', 'R58X3A1B2C99', '356938035640000', 'Company Owned', 'PV/2026/0001', '2026-09-01', 24999, '2026-09-01', '2027-08-31', '8 GB RAM / 128 GB', 'Charger - 25W, USB-C cable, Back case', '', ''];
+  const example = ['Samsung Galaxy A35', 'MOB', 'Samsung', 'SM-A356E', 'R58X3A1B2C99', '356938035640000', '', 'Company Owned', 'PV/2026/0001', '2026-09-01', 24999, '2026-09-01', '2027-08-31', '8 GB RAM / 128 GB', 'Charger - 25W, USB-C cable, Back case', '', ''];
   const wa = XLSX.utils.aoa_to_sheet([assetHeaders, example]);
   wa['!cols'] = assetHeaders.map(h => ({ wch: Math.max(14, h.length + 2) }));
   // Mark mandatory columns with a * in the header (cell colours are not supported by the community build of SheetJS).

@@ -50,7 +50,7 @@ numbering and document templates are independent of storage.
 ## Business rules enforced (`src/data/store.ts`)
 
 1. Unique Asset ID per category: `GW-AST-MOB-0001`
-2. Serial / IMEI / SIM duplicate check on registration and edit
+2. Serial / IMEI / SIM duplicate check on registration and edit; which of them are required follows the asset category (SIM card → SIM number, phone → IMEI, everything else → serial only)
 3. One active custodian per asset
 4. Only *Available* assets can be issued
 5. Every issue / return / transfer / repair / incident / verification / retirement / disposal writes a separate transaction

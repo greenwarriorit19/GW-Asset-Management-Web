@@ -6,6 +6,7 @@ import { today } from '../data/store';
 import { PageHead, Section, Status, DataTable, Input, Select, SearchSelect, TextArea, FileInput, AttachmentLink, ReadOnly, Modal, Alert, useAction, fmtDate, fmtDateTime, fmtMoney, fmtSize, type Column, DateInput } from '../components/ui';
 import { useQr, assetUrl } from '../components/A4Document';
 import { RegistrationDoc, AssetHistoryDoc } from '../documents';
+import { identifierNeeds, needsField } from '../lib/categoryFields';
 import { exportRows } from '../lib/export';
 
 // ---------- 3. Asset Inventory ----------
@@ -196,7 +197,7 @@ export function AssetRegister() {
     <>
       <PageHead crumbs="Assets" title="Asset Registration" />
       {done && <Alert kind="success">Asset <b>{done}</b> registered with status Available. <Link to={`/assets/${done}`}>Open record</Link> · <Link to="/assets/register" onClick={() => setDone(null)}>Register another</Link></Alert>}
-      <div className="rule-note">Rules enforced: unique Asset ID generated per category (GW-AST-CATEGORY-0001); serial, IMEI and SIM numbers are checked for duplicates; registration is recorded as the first transaction in the asset's permanent history and queued for Finance / Admin Head approval.</div>
+      <div className="rule-note">Rules enforced: unique Asset ID generated per category (GW-AST-CATEGORY-0001); the identifiers asked for follow the category (a SIM card needs its number, a phone its IMEI); serial, IMEI and SIM numbers are checked for duplicates; registration is recorded as the first transaction in the asset's permanent history and queued for Finance / Admin Head approval.</div>
       {/* key forces a fresh, empty form after each registration */}
       <AssetForm key={done ?? 'new'} onSaved={id => nav(`/assets/register?done=${id}`)} />
     </>
@@ -218,10 +219,11 @@ function AssetForm({ asset, onSaved, onClose }: { asset?: Asset; onSaved: (id: s
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setF(s => ({ ...s, [k]: v }));
   const previewId = asset ? asset.id : (() => { try { return store.nextAssetId(f.categoryId); } catch { return ''; } })();
   const dupWarn = store.checkDuplicates({ serialNumber: f.serialNumber, imei: f.imei, sim: f.sim }, asset?.id);
+  const ids = identifierNeeds(db.categories.find(c => c.id === f.categoryId));   // the category decides which identifiers are asked for
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const payload = { ...f, purchaseCost: Number(f.purchaseCost) || 0, imei: f.imei || undefined, sim: f.sim || undefined, warrantyStart: f.warrantyStart || undefined, warrantyExpiry: f.warrantyExpiry || undefined };
+    const payload = { ...f, purchaseCost: Number(f.purchaseCost) || 0, imei: needsField(ids.imei) ? f.imei || undefined : undefined, sim: needsField(ids.sim) ? f.sim || undefined : undefined, warrantyStart: f.warrantyStart || undefined, warrantyExpiry: f.warrantyExpiry || undefined };
     if (asset) {
       const ok = run(() => store.updateAsset(asset.id, payload, reason), 'Asset updated.');
       if (ok !== undefined) onSaved(asset.id);
@@ -242,8 +244,9 @@ function AssetForm({ asset, onSaved, onClose }: { asset?: Asset; onSaved: (id: s
           <Input label="Asset Name" required value={f.name} onChange={e => set('name', e.target.value)} />
           <Input label="Manufacturer" required value={f.manufacturer} onChange={e => set('manufacturer', e.target.value)} />
           <Input label="Model" required value={f.model} onChange={e => set('model', e.target.value)} />
-          <Input label="Serial Number" required value={f.serialNumber} onChange={e => set('serialNumber', e.target.value)} hint="Checked for duplicates" />
-          <Input label="IMEI Number" value={f.imei ?? ''} onChange={e => set('imei', e.target.value)} inputMode="numeric" />
+          <Input label={ids.serialLabel} required={ids.serial === 'required'} value={f.serialNumber} onChange={e => set('serialNumber', e.target.value)} hint={ids.serialHint} />
+          {needsField(ids.imei) && <Input label={ids.imeiLabel} required={ids.imei === 'required'} value={f.imei ?? ''} onChange={e => set('imei', e.target.value)} inputMode="numeric" hint={ids.imei === 'required' ? 'Checked for duplicates' : 'Optional for this category'} />}
+          {needsField(ids.sim) && <Input label={ids.simLabel} required={ids.sim === 'required'} value={f.sim ?? ''} onChange={e => set('sim', e.target.value)} inputMode="numeric" hint={ids.simHint} />}
           <Input label="Barcode / QR Code" value={f.barcode ?? ''} onChange={e => set('barcode', e.target.value)} hint="Defaults to the Asset ID" />
           <Select label="Ownership Type" required value={f.ownershipType} onChange={e => set('ownershipType', e.target.value as OwnershipType)} options={OWNERSHIP_TYPES.map(o => ({ value: o, label: o }))} />
         </div>

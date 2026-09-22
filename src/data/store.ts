@@ -13,6 +13,7 @@ export class BusinessRuleError extends Error {}
 
 // ---------- Permissions ----------
 import { ALL_PERMISSIONS, type Permission, type RoleDef } from './permissions';
+import { identifierNeeds } from '../lib/categoryFields';
 export { ROLE_PERMISSIONS, ALL_PERMISSIONS, PERMISSION_GROUPS } from './permissions';
 export type { Permission, RoleDef } from './permissions';
 
@@ -374,6 +375,15 @@ export class Store {
   }
 
   // ---------- Duplicate checks (Rule 2) ----------
+  /** Rule 2: the identifiers a category actually has must be filled in (a SIM needs its number, a phone its IMEI). */
+  requireIdentifiers(a: { categoryId: string; serialNumber?: string; imei?: string; sim?: string }) {
+    const cat = this.category(a.categoryId);
+    if (!cat) throw new BusinessRuleError('Select an asset category.');
+    const need = identifierNeeds(cat);
+    if (need.serial === 'required' && !a.serialNumber?.trim()) throw new BusinessRuleError(`${need.serialLabel} is required for ${cat.name}.`);
+    if (need.imei === 'required' && !a.imei?.trim()) throw new BusinessRuleError(`${need.imeiLabel} is required for ${cat.name}.`);
+    if (need.sim === 'required' && !a.sim?.trim()) throw new BusinessRuleError(`${need.simLabel} is required for ${cat.name}.`);
+  }
   checkDuplicates(a: { serialNumber?: string; imei?: string; sim?: string }, excludeId?: string): string[] {
     const errs: string[] = [];
     const others = this.db.assets.filter(x => x.id !== excludeId);
@@ -389,7 +399,7 @@ export class Store {
     this.snapshotBefore();
     this.require('asset.register');
     if (!input.name?.trim()) throw new BusinessRuleError('Asset name is required.');
-    if (!input.serialNumber?.trim()) throw new BusinessRuleError('Serial number is required.');
+    this.requireIdentifiers(input);
     const dup = this.checkDuplicates(input);
     if (dup.length) throw new BusinessRuleError(dup.join(' '));
     const id = this.nextAssetId(input.categoryId);
@@ -470,6 +480,7 @@ export class Store {
     this.requireReason(reason);
     const before = this.asset(id);
     if (!before) throw new BusinessRuleError('Asset not found');
+    this.requireIdentifiers({ ...before, ...patch });
     const dup = this.checkDuplicates({ ...before, ...patch }, id);
     if (dup.length) throw new BusinessRuleError(dup.join(' '));
     // Status and custody are never edited directly — they only change through transactions.
