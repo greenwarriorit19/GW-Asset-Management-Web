@@ -510,3 +510,53 @@ table.data tr:hover td { background: rgba(255,255,255,0.55); }
 .login-wrap .loading-card .typing-circle { background: #fff; }
 .login-wrap .loading-card .typing-shadow { background: rgba(255,255,255,0.25); }
 @media (max-width: 820px) { .login-wrap { background-attachment: scroll; } }
+
+/* ---------- "Assets to Assign" editor (asset rows + accessory sub-rows) ---------- */
+.section.assign-card > .section-body { overflow: visible; }      /* let the Condition dropdown escape the card */
+.assign-card .table-wrap { overflow: visible; }
+.assign-card .ac-count { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; color: var(--grey-700); background: rgba(255,255,255,0.75); border: 1px solid var(--grey-300); border-radius: 999px; padding: 2px 10px; text-transform: none; }
+
+.assign-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 14px; background: rgba(112,121,140,0.07); border-bottom: 1px solid rgba(112,121,140,0.22); }
+.assign-bar .ab-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--grey-700); }
+.assign-bar .ss.tb { flex: 1 1 320px; min-width: 220px; }
+.assign-bar .ab-avail { margin-left: auto; font-size: 11.5px; color: var(--grey-500); }
+
+table.data.assign { border-collapse: separate; border-spacing: 0; }
+table.data.assign th { font-size: 10.5px; padding: 9px 10px; }
+table.data.assign td { padding: 8px 10px; vertical-align: middle; border-bottom: none; }
+table.data.assign tr:hover td { background: transparent; }
+table.data.assign .ix { width: 40px; text-align: center; }
+.assign .ix-dot { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 999px; background: var(--navy); color: #fff; font-size: 11px; font-weight: 600; }
+.assign .ix-sub { color: var(--grey-500); font-size: 11px; letter-spacing: 0.04em; }
+.assign .dash { color: var(--grey-300); }
+.assign td.act { width: 1%; text-align: right; }
+
+/* Asset row — the anchor of each group */
+table.data.assign tr.assign-main td { background: rgba(255, 255, 255, 0.72); padding-top: 12px; padding-bottom: 10px; }
+table.data.assign tr.assign-main:hover td { background: rgba(255, 255, 255, 0.92); }
+table.data.assign tr.assign-main td:first-child { box-shadow: inset 3px 0 0 var(--navy); }
+.assign .asset-chip { display: inline-block; background: var(--navy); color: #fff; border-radius: 999px; padding: 3px 11px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em; }
+.assign .asset-chip + .small { margin-top: 3px; }
+
+/* Accessory sub-rows — tinted, indented, tied to the asset above by a tree marker */
+table.data.assign tr.assign-acc td { background: rgba(112, 121, 140, 0.07); padding-top: 5px; padding-bottom: 5px; }
+table.data.assign tr.assign-acc td:first-child { box-shadow: inset 3px 0 0 rgba(112, 121, 140, 0.45); }
+.assign .acc-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--grey-500); }
+.assign .acc-tag::before { content: '\21B3'; font-size: 13px; color: var(--grey-300); }
+
+/* Add-accessory row closes the group */
+table.data.assign tr.assign-add td { background: rgba(112, 121, 140, 0.07); padding-top: 4px; padding-bottom: 10px; border-bottom: 1px solid rgba(112, 121, 140, 0.3); }
+table.data.assign tr.assign-add td:first-child { background: transparent; border-bottom-color: transparent; }
+.assign .btn.add-acc { background: transparent; border-style: dashed; border-color: var(--grey-300); color: var(--grey-700); box-shadow: none; }
+.assign .btn.add-acc:hover { border-color: var(--navy); color: var(--navy); background: rgba(255, 255, 255, 0.7); }
+
+/* Inline editors inside the table */
+.assign input.ai { font-family: inherit; font-size: 12.5px; color: var(--charcoal); width: 100%; min-height: 30px; padding: 5px 9px; border: 1px solid var(--grey-300); border-radius: var(--radius-sm); background: rgba(255, 255, 255, 0.9); }
+.assign input.ai::placeholder { color: var(--grey-500); }
+.assign input.ai:focus { outline: none; border-color: var(--navy); box-shadow: 0 0 0 3px rgba(112, 121, 140, 0.22); }
+.assign input.ai.qty { width: 62px; text-align: center; font-variant-numeric: tabular-nums; }
+.assign .ss.tb .ss-input { min-height: 30px; padding: 5px 34px 5px 9px; font-size: 12.5px; }
+.assign .btn.rm { border-color: var(--grey-300); color: var(--grey-700); background: rgba(255, 255, 255, 0.8); }
+.assign .btn.rm:hover { border-color: var(--danger); color: var(--danger); background: var(--danger-bg); }
+
+@media (max-width: 1100px) { .assign-card .table-wrap { overflow-x: auto; } table.data.assign { min-width: 900px; } }

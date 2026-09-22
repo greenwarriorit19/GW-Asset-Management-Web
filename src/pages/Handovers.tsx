@@ -149,43 +149,56 @@ export function HandoverNew() {
             <Select label="Issued By" required value={issuedBy} onChange={e => setIssuedBy(e.target.value)} options={db.users.filter(u => ['asset_admin', 'super_admin'].includes(u.role)).map(u => ({ value: u.id, label: u.name }))} />
           </div>
         </Section>
-        <Section title="Assets to Assign" compact right={<div className="btn-row"><SearchSelect className="tb" style={{ minWidth: 320 }} value={pick} onChange={e => setPick(e.target.value)} placeholder={available.length ? `Add available asset… (${available.length})` : 'No assets are Available'} options={available.map(a => ({ value: a.id, label: `${a.id} — ${a.name} (${a.serialNumber})` }))} /><button type="button" className="btn sm" disabled={!pick} onClick={add}>Add</button></div>}>
-          <table className="data">
-            <thead><tr><th>#</th><th>Asset ID / Accessories</th><th>Asset Type</th><th>Make and Model</th><th>Serial / IMEI / SIM</th><th>Condition</th><th>Qty</th><th>Remarks</th><th /></tr></thead>
+        <Section title="Assets to Assign" compact className="assign-card" right={<span className="ac-count">{items.length} selected</span>}>
+          <div className="assign-bar">
+            <span className="ab-label">Add asset</span>
+            <SearchSelect className="tb" value={pick} onChange={e => setPick(e.target.value)} placeholder={available.length ? 'Search asset ID, name or serial…' : 'No assets are Available'} options={available.map(a => ({ value: a.id, label: `${a.id} — ${a.name} (${a.serialNumber})` }))} />
+            <button type="button" className="btn sm primary" disabled={!pick} onClick={add}>Add to list</button>
+            <span className="ab-avail">{available.length} available</span>
+          </div>
+          <div className="table-wrap">
+          <table className="data assign">
+            <thead><tr><th className="ix">#</th><th>Asset ID / Accessories</th><th>Asset Type</th><th>Make and Model</th><th>Serial / IMEI / SIM</th><th>Condition</th><th>Qty</th><th>Remarks</th><th /></tr></thead>
             <tbody>
               {items.length === 0 && <tr><td className="empty" colSpan={9}>
                 {available.length > 0
-                  ? <>Pick an asset from <b>Add available asset…</b> above — {available.length} asset(s) are Available.</>
+                  ? <>Pick an asset from <b>Add asset</b> above — {available.length} asset(s) are Available.</>
                   : db.assets.length === 0
                     ? <>No assets have been registered yet. <Link to="/assets/register">Register an asset</Link> or use <Link to="/assets/import">Bulk Import</Link> first.</>
                     : <>None of the {db.assets.length} registered asset(s) are <b>Available</b> to assign — {[...new Set(db.assets.map(a => a.status))].map(st => `${db.assets.filter(a => a.status === st).length} ${st}`).join(', ')}. Return or free one, or <Link to="/assets/register">register a new asset</Link>.</>}
               </td></tr>}
               {items.map((it, i) => { const a = store.asset(it.assetId)!; const acc = rowsFor(it.assetId, it.accessories);
                 const setAcc = (list: Acc[]) => setRows(i, it.assetId, list);
-                const cell = { width: '100%', padding: 4, fontFamily: 'inherit' } as const;
                 return (
                 <Fragment key={it.assetId}>
-                  <tr>
-                    <td>{i + 1}</td><td className="mono"><b>{a.id}</b></td><td>{store.catName(a.categoryId)}</td><td>{a.manufacturer} {a.model}</td><td className="mono">{[a.serialNumber, a.imei, a.sim].filter(Boolean).join(' / ')}</td>
-                    <td><SearchSelect className="tb" style={{ minWidth: 120 }} value={it.condition} onChange={e => upd(i, { condition: e.target.value as Condition })} options={CONDITIONS.map(c => ({ value: c, label: c }))} /></td>
-                    <td><input type="number" min={1} value={it.quantity} onChange={e => upd(i, { quantity: Number(e.target.value) })} style={{ width: 54, padding: 4, fontFamily: 'inherit' }} /></td>
-                    <td><input value={it.remarks} onChange={e => upd(i, { remarks: e.target.value })} style={cell} /></td>
-                    <td><button type="button" className="btn sm ghost" onClick={() => setItems(items.filter((_, j) => j !== i))}>Remove</button></td>
+                  <tr className="assign-main">
+                    <td className="ix"><span className="ix-dot">{i + 1}</span></td>
+                    <td><span className="asset-chip mono">{a.id}</span><div className="muted small">{a.name}</div></td>
+                    <td>{store.catName(a.categoryId)}</td>
+                    <td>{a.manufacturer} {a.model}</td>
+                    <td className="mono">{[a.serialNumber, a.imei, a.sim].filter(Boolean).join(' / ') || <span className="muted">—</span>}</td>
+                    <td><SearchSelect className="tb" style={{ minWidth: 118 }} value={it.condition} onChange={e => upd(i, { condition: e.target.value as Condition })} options={CONDITIONS.map(c => ({ value: c, label: c }))} /></td>
+                    <td><input className="ai qty" type="number" min={1} value={it.quantity} onChange={e => upd(i, { quantity: Number(e.target.value) })} /></td>
+                    <td><input className="ai" value={it.remarks} placeholder="Optional note" onChange={e => upd(i, { remarks: e.target.value })} /></td>
+                    <td className="act"><button type="button" className="btn sm rm" onClick={() => setItems(items.filter((_, j) => j !== i))}>Remove</button></td>
                   </tr>
                   {acc.map((x, j) => (
-                    <tr key={j} className="sub">
-                      <td style={{ textAlign: 'right', color: 'var(--grey-500)' }}>{roman(j + 1)}</td><td className="muted">Accessories</td>
-                      <td><input value={x.name} placeholder="e.g. Charger" onChange={e => setAcc(acc.map((y, k) => k === j ? { ...y, name: e.target.value } : y))} style={cell} /></td>
-                      <td><input value={x.model} placeholder="model / details" onChange={e => setAcc(acc.map((y, k) => k === j ? { ...y, model: e.target.value } : y))} style={cell} /></td>
-                      <td /><td />
-                      <td><input type="number" min={1} value={x.qty} onChange={e => setAcc(acc.map((y, k) => k === j ? { ...y, qty: Math.max(1, Number(e.target.value) || 1) } : y))} style={{ width: 54, padding: 4, fontFamily: 'inherit' }} /></td>
-                      <td /><td><button type="button" className="btn sm ghost" onClick={() => setAcc(acc.filter((_, k) => k !== j))}>Remove</button></td>
+                    <tr key={j} className="assign-acc">
+                      <td className="ix"><span className="ix-sub">{roman(j + 1)}</span></td>
+                      <td><span className="acc-tag">Accessory</span></td>
+                      <td><input className="ai" value={x.name} placeholder="e.g. Charger" onChange={e => setAcc(acc.map((y, k) => k === j ? { ...y, name: e.target.value } : y))} /></td>
+                      <td><input className="ai" value={x.model} placeholder="Model / details" onChange={e => setAcc(acc.map((y, k) => k === j ? { ...y, model: e.target.value } : y))} /></td>
+                      <td className="dash">—</td><td className="dash">—</td>
+                      <td><input className="ai qty" type="number" min={1} value={x.qty} onChange={e => setAcc(acc.map((y, k) => k === j ? { ...y, qty: Math.max(1, Number(e.target.value) || 1) } : y))} /></td>
+                      <td />
+                      <td className="act"><button type="button" className="btn sm rm" onClick={() => setAcc(acc.filter((_, k) => k !== j))}>Remove</button></td>
                     </tr>
                   ))}
-                  <tr className="sub"><td /><td colSpan={8}><button type="button" className="btn sm" onClick={() => setAcc([...acc, { name: '', model: '', qty: 1 }])}>+ Add accessory</button></td></tr>
+                  <tr className="assign-add"><td /><td colSpan={8}><button type="button" className="btn sm add-acc" onClick={() => setAcc([...acc, { name: '', model: '', qty: 1 }])}>+ Add accessory</button></td></tr>
                 </Fragment>); })}
             </tbody>
           </table>
+          </div>
         </Section>
         <div className="btn-row end" style={{ marginBottom: 18 }}><Link className="btn ghost" to="/handovers">Cancel</Link><button className="btn primary" type="submit" disabled={!employeeId || items.length === 0}>Submit</button></div>
       </form>
