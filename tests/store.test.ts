@@ -476,18 +476,21 @@ describe('Bulk import (Excel)', () => {
   it('validates rows against the register and within the file, resolving codes or names', async () => {
     const { validateAssets, validateEmployees } = await import('../src/lib/bulk');
     const db = s.getSnapshot();
+    const full = { 'Asset Name': 'Phone A', Category: 'MOB', Manufacturer: 'Samsung', Model: 'A16', 'Serial Number': 'BULK-1', 'IMEI Number': '123', 'SIM Number': '456', 'Purchase Date': '2026-09-01', 'Purchase Cost': '15,000', 'Warranty Start Date': '2026-09-01', 'Warranty Expiry Date': '2027-08-31', Condition: 'New', Department: 'Operations', 'Assigned Location': 'PM', Specification: '8 GB', Accessories: 'Charger' };
     const rows = [
-      { 'Asset Name': 'Phone A', Category: 'MOB', Manufacturer: 'Samsung', Model: 'A16', 'Serial Number': 'BULK-1', 'Supplier Name': 'S', 'Invoice Number': 'I', 'Purchase Date': '2026-09-01', 'Purchase Cost': '15,000', Department: 'Operations', 'Assigned Location': 'PM', Condition: 'New' },
-      { 'Asset Name': 'Phone B', Category: 'Mobile Phone', Manufacturer: 'Samsung', Model: 'A16', 'Serial Number': 'r58x3a1b2c01', 'Supplier Name': 'S', 'Invoice Number': 'I', Department: 'OPS', 'Assigned Location': 'PM' },   // serial exists in register
-      { 'Asset Name': 'Phone C', Category: 'XYZ', Manufacturer: 'Samsung', Model: 'A16', 'Serial Number': 'BULK-1', 'Supplier Name': 'S', 'Invoice Number': 'I', Department: 'OPS', 'Assigned Location': 'PM' },          // bad category + dup within file
-      { 'Asset Name': '', Category: 'MOB', Manufacturer: '', Model: 'A16', 'Serial Number': 'BULK-9', 'Supplier Name': 'S', 'Invoice Number': 'I', Department: 'OPS', 'Assigned Location': 'PM', 'Purchase Date': new Date(2026, 8, 5) },
+      full,
+      { ...full, 'Asset Name': 'Phone B', Category: 'Mobile Phone', 'Serial Number': 'r58x3a1b2c01', 'IMEI Number': '124', 'SIM Number': '457' },      // serial exists in register
+      { ...full, 'Asset Name': 'Phone C', Category: 'XYZ', 'IMEI Number': '125', 'SIM Number': '458' },                                              // bad category + dup serial within file
+      { ...full, 'Asset Name': '', Manufacturer: '', 'Serial Number': 'BULK-9', 'IMEI Number': '', 'SIM Number': '459', 'Purchase Date': new Date(2026, 8, 5), Accessories: '' },
+      { ...full, 'Asset Name': 'Laptop', Category: 'LAP', 'Serial Number': 'BULK-L', 'IMEI Number': '', 'SIM Number': '' },                          // IMEI/SIM not needed for laptops
     ];
     const v = validateAssets(rows, db);
     expect(v[0].errors).toEqual([]);
-    expect(v[0].data).toMatchObject({ categoryId: 'C-MOB', departmentId: 'D-OPS', locationId: 'L-PM', purchaseCost: 15000, purchaseDate: '2026-09-01' });
+    expect(v[0].data).toMatchObject({ categoryId: 'C-MOB', departmentId: 'D-OPS', locationId: 'L-PM', purchaseCost: 15000, purchaseDate: '2026-09-01', warrantyExpiry: '2027-08-31', supplierName: '' });
     expect(v[1].errors.join()).toMatch(/Serial R58X3A1B2C01 already exists/);
     expect(v[2].errors.join()).toMatch(/Category "XYZ" not found/); expect(v[2].errors.join()).toMatch(/Serial BULK-1 already exists/);
-    expect(v[3].errors.join()).toMatch(/Asset Name is required/); expect(v[3].data.purchaseDate).toBe('2026-09-05');
+    expect(v[3].errors.join()).toMatch(/Asset Name is required/); expect(v[3].errors.join()).toMatch(/IMEI Number is required/); expect(v[3].errors.join()).toMatch(/Accessories is required/); expect(v[3].data.purchaseDate).toBe('2026-09-05');
+    expect(v[4].errors).toEqual([]);
     const e = validateEmployees([{ 'Employee Name': 'New Person', Designation: 'Driver', Department: 'OPS', 'Work Location': 'PM Zone Depot', Active: 'no' }, { 'Employee ID': 'GW-EMP-0001', 'Employee Name': 'Dup', Designation: 'x', Department: 'OPS', 'Work Location': 'PM' }], db);
     expect(e[0].errors).toEqual([]); expect(e[0].data).toMatchObject({ departmentId: 'D-OPS', workLocationId: 'L-PM', active: false });
     expect(e[1].errors.join()).toMatch(/already exists/);
@@ -515,8 +518,8 @@ describe('Bulk import (Excel)', () => {
   it('template and upload round-trip through a real .xlsx file', async () => {
     const XLSX = await import('xlsx');
     const { readSheet, validateAssets, ASSET_COLUMNS } = await import('../src/lib/bulk');
-    const headers = ASSET_COLUMNS.map(c => c[0]);
-    const row = ['Excel Phone', 'MOB', 'Samsung', 'A16', 'XL-1', '', '', '', 'Company Owned', 'S', 'I', '', new Date(2026, 8, 1), 12000, '', '', '', 'Good', 'OPS', 'PM', '', 'Charger', '', ''];
+    const headers = ASSET_COLUMNS.map(c => c[1].startsWith('REQUIRED') ? `${c[0]} *` : c[0]);   // as the template writes them
+    const row = ['Excel Phone', 'MOB', 'Samsung', 'A16', 'XL-1', '111', '222', 'Company Owned', 'I', new Date(2026, 8, 1), 12000, '2026-09-01', '2027-08-31', 'Good', 'OPS', 'PM', '8 GB', 'Charger', '', ''];
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([headers, row]), 'Assets');
     const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
     const file = { name: 't.xlsx', arrayBuffer: async () => buf } as unknown as File;

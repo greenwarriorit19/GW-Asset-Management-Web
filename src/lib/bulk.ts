@@ -3,13 +3,16 @@ import type { Database, Condition, OwnershipType } from '../data/types';
 import { CONDITIONS, OWNERSHIP_TYPES } from '../data/types';
 
 export const ASSET_COLUMNS = [
-  ['Asset Name', 'required'], ['Category', 'required — code or name, e.g. MOB or Mobile Phone'], ['Manufacturer', 'required'], ['Model', 'required'],
-  ['Serial Number', 'required — must be unique'], ['IMEI Number', 'unique if given'], ['SIM Number', 'unique if given'], ['Barcode / QR Code', 'defaults to the Asset ID'],
-  ['Ownership Type', `one of: ${OWNERSHIP_TYPES.join(', ')} (default Company Owned)`], ['Supplier Name', 'required'], ['Invoice Number', 'required'], ['Purchase Order Number', ''],
-  ['Purchase Date', 'date (YYYY-MM-DD or Excel date)'], ['Purchase Cost', 'number in ₹'], ['Warranty Start Date', 'date'], ['Warranty Expiry Date', 'date'],
-  ['Funding / Project', ''], ['Condition', `one of: ${CONDITIONS.join(', ')} (default New)`], ['Department', 'required — code or name'], ['Assigned Location', 'required — code or name'],
-  ['Specification', ''], ['Accessories', 'comma-separated, e.g. Charger - Moto 33W, Back case x2'], ['Maintenance Notes', ''], ['Remarks', ''],
+  ['Asset Name', 'REQUIRED'], ['Category', 'REQUIRED — code or name, e.g. MOB or Mobile Phone'], ['Manufacturer', 'REQUIRED'], ['Model', 'REQUIRED'],
+  ['Serial Number', 'REQUIRED — must be unique'], ['IMEI Number', 'REQUIRED for MOB / TAB / GPS / SIM categories; unique'], ['SIM Number', 'REQUIRED for MOB / TAB / GPS / SIM categories; unique'],
+  ['Ownership Type', `optional — one of: ${OWNERSHIP_TYPES.join(', ')} (default Company Owned)`], ['Invoice Number', 'optional'],
+  ['Purchase Date', 'REQUIRED — date (YYYY-MM-DD or Excel date)'], ['Purchase Cost', 'REQUIRED — number in ₹'], ['Warranty Start Date', 'REQUIRED — date'], ['Warranty Expiry Date', 'REQUIRED — date'],
+  ['Condition', `REQUIRED — one of: ${CONDITIONS.join(', ')}`], ['Department', 'REQUIRED — code or name'], ['Assigned Location', 'REQUIRED — code or name'],
+  ['Specification', 'REQUIRED'], ['Accessories', 'REQUIRED — comma-separated, e.g. Charger - Moto 33W, Back case x2'], ['Maintenance Notes', 'optional'], ['Remarks', 'optional'],
 ] as const;
+
+/** Categories whose assets carry an IMEI / SIM; for these the columns are mandatory. */
+export const IMEI_SIM_CATEGORIES = ['MOB', 'TAB', 'GPS', 'SIM'];
 
 export const EMPLOYEE_COLUMNS = [
   ['Employee ID', 'optional — e.g. GW-EMP-0031; generated when blank'], ['Employee Name', 'required'], ['Designation', 'required'], ['Department', 'required — code or name'],
@@ -66,23 +69,27 @@ export function validateAssets(rows: Record<string, unknown>[], db: Database): P
     const cat = lookup(db.categories, findCol(raw, 'Category')); if (!cat) e.push(`Category "${g('Category')}" not found`);
     const dept = lookup(db.departments, findCol(raw, 'Department')); if (!dept) e.push(`Department "${g('Department')}" not found`);
     const loc = lookup(db.locations, findCol(raw, 'Assigned Location') ?? findCol(raw, 'Location')); if (!loc) e.push(`Location "${g('Assigned Location') || g('Location')}" not found`);
-    for (const f of ['Asset Name', 'Manufacturer', 'Model', 'Serial Number', 'Supplier Name', 'Invoice Number']) if (!g(f)) e.push(`${f} is required`);
+    for (const f of ['Asset Name', 'Manufacturer', 'Model', 'Serial Number', 'Purchase Date', 'Purchase Cost', 'Warranty Start Date', 'Warranty Expiry Date', 'Condition', 'Specification', 'Accessories']) if (!g(f)) e.push(`${f} is required`);
+    const catCode = db.categories.find(c => c.id === cat)?.code ?? '';
+    if (IMEI_SIM_CATEGORIES.includes(catCode)) { if (!g('IMEI Number')) e.push('IMEI Number is required for this category'); if (!g('SIM Number')) e.push('SIM Number is required for this category'); }
     const sn = g('Serial Number').toUpperCase(), imei = g('IMEI Number').toUpperCase(), sim = g('SIM Number').toUpperCase();
     if (sn && (serials.has(sn) || seenS.has(sn))) e.push(`Serial ${sn} already exists`); seenS.add(sn);
     if (imei && (imeis.has(imei) || seenI.has(imei))) e.push(`IMEI ${imei} already exists`); if (imei) seenI.add(imei);
     if (sim && (sims.has(sim) || seenM.has(sim))) e.push(`SIM ${sim} already exists`); if (sim) seenM.add(sim);
     const own = OWNERSHIP_TYPES.find(o => key(o) === key(g('Ownership Type'))) ?? (g('Ownership Type') ? undefined : 'Company Owned');
     if (!own) e.push(`Ownership Type "${g('Ownership Type')}" invalid`);
-    const cond = CONDITIONS.find(c => key(c) === key(g('Condition'))) ?? (g('Condition') ? undefined : 'New');
-    if (!cond) e.push(`Condition "${g('Condition')}" invalid`);
-    const cost = Number(String(findCol(raw, 'Purchase Cost') ?? '0').replace(/[^\d.]/g, '')); if (isNaN(cost)) e.push('Purchase Cost is not a number');
+    const cond = CONDITIONS.find(c => key(c) === key(g('Condition')));
+    if (g('Condition') && !cond) e.push(`Condition "${g('Condition')}" invalid`);
+    const cost = Number(String(findCol(raw, 'Purchase Cost') ?? '').replace(/[^\d.]/g, '')); if (g('Purchase Cost') && isNaN(cost)) e.push('Purchase Cost is not a number');
     const pd = toDate(findCol(raw, 'Purchase Date')); if (g('Purchase Date') && !pd) e.push('Purchase Date not recognised');
+    const ws = toDate(findCol(raw, 'Warranty Start Date')); if (g('Warranty Start Date') && !ws) e.push('Warranty Start Date not recognised');
+    const we = toDate(findCol(raw, 'Warranty Expiry Date')); if (g('Warranty Expiry Date') && !we) e.push('Warranty Expiry Date not recognised');
     const data: AssetRow = {
       name: g('Asset Name'), categoryId: cat ?? '', manufacturer: g('Manufacturer'), model: g('Model'), serialNumber: g('Serial Number'),
-      imei: g('IMEI Number') || undefined, sim: g('SIM Number') || undefined, barcode: g('Barcode / QR Code') || undefined,
-      ownershipType: (own ?? 'Company Owned') as OwnershipType, supplierName: g('Supplier Name'), invoiceNumber: g('Invoice Number'), poNumber: g('Purchase Order Number'),
-      purchaseDate: pd ?? '', purchaseCost: isNaN(cost) ? 0 : cost, warrantyStart: toDate(findCol(raw, 'Warranty Start Date')), warrantyExpiry: toDate(findCol(raw, 'Warranty Expiry Date')),
-      funding: g('Funding / Project') || undefined, condition: (cond ?? 'New') as Condition, departmentId: dept ?? '', locationId: loc ?? '',
+      imei: g('IMEI Number') || undefined, sim: g('SIM Number') || undefined, barcode: undefined,
+      ownershipType: (own ?? 'Company Owned') as OwnershipType, supplierName: '', invoiceNumber: g('Invoice Number'), poNumber: '',
+      purchaseDate: pd ?? '', purchaseCost: isNaN(cost) ? 0 : cost, warrantyStart: ws, warrantyExpiry: we,
+      funding: undefined, condition: (cond ?? 'New') as Condition, departmentId: dept ?? '', locationId: loc ?? '',
       specification: g('Specification') || undefined, accessories: g('Accessories') || undefined, maintenanceNotes: g('Maintenance Notes') || undefined, remarks: g('Remarks') || undefined,
     };
     return { line: i + 2, data, errors: e, raw };
@@ -121,9 +128,11 @@ export async function downloadTemplate(db: Database) {
   const XLSX = await import('xlsx');
   const wb = XLSX.utils.book_new();
   const assetHeaders = ASSET_COLUMNS.map(c => c[0]);
-  const example = ['Samsung Galaxy A35', 'MOB', 'Samsung', 'SM-A356E', 'R58X3A1B2C99', '356938035640000', '', '', 'Company Owned', 'Poorvika Mobiles', 'PV/2026/0001', 'GW-PO-2026-001', '2026-09-01', 24999, '2026-09-01', '2027-08-31', 'Municipal Sanitation Contract', 'New', 'OPS', 'PM', '8 GB RAM / 128 GB', 'Charger - 25W, USB-C cable, Back case', '', ''];
+  const example = ['Samsung Galaxy A35', 'MOB', 'Samsung', 'SM-A356E', 'R58X3A1B2C99', '356938035640000', '8991100012340000', 'Company Owned', 'PV/2026/0001', '2026-09-01', 24999, '2026-09-01', '2027-08-31', 'New', 'OPS', 'PM', '8 GB RAM / 128 GB', 'Charger - 25W, USB-C cable, Back case', '', ''];
   const wa = XLSX.utils.aoa_to_sheet([assetHeaders, example]);
   wa['!cols'] = assetHeaders.map(h => ({ wch: Math.max(14, h.length + 2) }));
+  // Mark mandatory columns with a * in the header (cell colours are not supported by the community build of SheetJS).
+  ASSET_COLUMNS.forEach((c, i) => { if (c[1].startsWith('REQUIRED')) { const ref = XLSX.utils.encode_cell({ r: 0, c: i }); wa[ref].v = `${c[0]} *`; } });
   XLSX.utils.book_append_sheet(wb, wa, 'Assets');
   const empHeaders = EMPLOYEE_COLUMNS.map(c => c[0]);
   const we = XLSX.utils.aoa_to_sheet([empHeaders, ['', 'A. Kumar', 'Field Supervisor', 'OPS', '2026-09-01', 'PM', '+91 98400 00000', 'kumar@greenwarrior.in', 'Yes']]);
