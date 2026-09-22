@@ -407,6 +407,12 @@ table.data tr:hover td { background: rgba(255,255,255,0.55); }
 .a4 h4 { background: #F2EDEB; border-top-color: #020202; }
 @media print { body { background: #fff; } .a4 { box-shadow: none; } }
 
+/* Always-visible sync error bar */
+.sync-error { position: sticky; top: var(--topbar-h); z-index: 90; grid-column: 2; display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  margin: 12px 28px -6px; padding: 12px 16px; background: var(--danger-bg); border: 1px solid #D19AA3; border-left: 4px solid var(--danger); border-radius: var(--radius-sm); color: var(--danger); box-shadow: var(--shadow-sm); }
+.sync-error .small { color: var(--grey-900); margin-top: 2px; }
+@media (max-width: 820px) { .sync-error { grid-column: 1; margin: 12px 16px -6px; } }
+
 /* ---------- Loader (bouncing dots) ---------- */
 .loader { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 12px; }
 .loader.inline { display: inline-flex; flex-direction: row; gap: 10px; padding: 0 6px; vertical-align: middle; }

@@ -140,6 +140,19 @@ export class Store {
   }
   async updatePassword(password: string) { await sb.updatePassword(password); }
 
+  /** Re-attempts the last failed write (the local change is still in memory). */
+  retrySave() {
+    if (this.mode !== 'supabase') return;
+    this.setSession({ sync: { state: 'saving' } });
+    const before = this.lastFailedBase ?? this.lastCommitted;
+    const next = this.db;
+    this.saving = this.saving.then(() => sb.persistDiff(before, next)).then(
+      r => { this.lastFailedBase = undefined; this.lastCommitted = next; this.setSession({ sync: { state: 'saved', at: nowIso(), message: `${r.upserts + r.deletes} row(s)` } }); },
+      e => this.setSession({ sync: { state: 'error', at: nowIso(), message: `Not saved to the server: ${e instanceof Error ? e.message : String(e)}` } }),
+    );
+  }
+  private lastFailedBase?: Database;
+
   /** Another user changed something: re-read the database once any in-flight save has finished. */
   private async reloadFromServer() {
     if (this.session.phase !== 'ready') return;
@@ -190,7 +203,7 @@ export class Store {
     this.setSession({ sync: { state: 'saving' } });
     this.saving = this.saving.then(() => sb.persistDiff(before, next)).then(
       r => this.setSession({ sync: { state: 'saved', at: nowIso(), message: `${r.upserts + r.deletes} row(s)` } }),
-      e => this.setSession({ sync: { state: 'error', at: nowIso(), message: `Not saved to the server: ${e instanceof Error ? e.message : String(e)}` } }),
+      e => { this.lastFailedBase = before; this.setSession({ sync: { state: 'error', at: nowIso(), message: `Not saved to the server: ${e instanceof Error ? e.message : String(e)}` } }); },
     );
   }
   /** Snapshot the last state known to be on the server, so each commit only writes what changed. */

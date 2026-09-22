@@ -77,7 +77,16 @@ export function Layout() {
           );
         })}
       </nav>
-      <main className="main">{session.mode === 'supabase' && session.sync.state === 'error' && <div className="alert error">{session.sync.message} — the change is still on screen; check the connection and retry the action.</div>}<Outlet /></main>
+      {session.mode === 'supabase' && session.sync.state === 'error' && (
+        <div className="sync-error" role="alert">
+          <div><b>Not saved to the server.</b> <span className="mono">{session.sync.message?.replace('Not saved to the server: ', '')}</span><div className="small">Your change is still on screen. Fix the cause or press Retry; nothing is lost.</div></div>
+          <div className="btn-row">
+            <button className="btn sm" onClick={() => navigator.clipboard?.writeText(session.sync.message ?? '')}>Copy error</button>
+            <button className="btn sm primary" onClick={() => store.retrySave()}>Retry save</button>
+          </div>
+        </div>
+      )}
+      <main className="main"><Outlet /></main>
     </div>
   );
 }
