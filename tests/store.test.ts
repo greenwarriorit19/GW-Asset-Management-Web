@@ -542,6 +542,13 @@ describe('Bulk import (Excel)', () => {
     s.switchUser('U-AA');
     expect(() => s.importEmployees([], 'x')).toThrow(/permit/);
   });
+  it('a SIM row needs neither name nor procurement detail', async () => {
+    const { validateAssets } = await import('../src/lib/bulk');
+    const db = s.getSnapshot();
+    const v = validateAssets([{ Category: 'SIM', Manufacturer: 'Airtel', Model: 'Prepaid', 'SIM Number': '9840000123' }], db);
+    expect(v[0].errors).toEqual([]);
+    expect(v[0].data).toMatchObject({ name: 'Airtel SIM 9840000123', categoryId: 'C-SIM', sim: '9840000123' });
+  });
   it('template and upload round-trip through a real .xlsx file', async () => {
     const XLSX = await import('xlsx');
     const { readSheet, validateAssets, assetTemplateHeaders } = await import('../src/lib/bulk');

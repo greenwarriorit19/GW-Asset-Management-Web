@@ -8,6 +8,8 @@ export interface IdentifierNeeds {
   sim: Need; simLabel: string; simHint?: string;
   /** Whether the asset can be enrolled in Mobile Device Management. */
   mdm: Need;
+  /** Identification only: no asset name, procurement or specification block (a SIM connection has none of them). */
+  identityOnly: boolean;
 }
 
 const DEFAULTS: IdentifierNeeds = {
@@ -15,6 +17,7 @@ const DEFAULTS: IdentifierNeeds = {
   imei: 'hidden', imeiLabel: 'IMEI Number',
   sim: 'hidden', simLabel: 'SIM Number',
   mdm: 'hidden',
+  identityOnly: false,
 };
 
 /**
@@ -32,6 +35,7 @@ export function identifierNeeds(cat?: Pick<Category, 'code' | 'name'>): Identifi
     ...DEFAULTS,
     sim: 'required', simLabel: 'SIM Number (mobile number)', simHint: 'The number on the connection — checked for duplicates',
     serial: 'optional', serialLabel: 'ICCID / Serial Number', serialHint: 'The long number printed on the SIM (optional)',
+    identityOnly: true,
   };
   // Phones always carry an IMEI, and may be registered with a SIM already fitted.
   if (['MOB', 'PHN'].includes(code) || word('mobile', 'phone', 'handset')) return {

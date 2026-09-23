@@ -4,7 +4,7 @@ import { OWNERSHIP_TYPES } from '../data/types';
 import { identifierNeeds } from './categoryFields';
 
 export const ASSET_COLUMNS = [
-  ['Asset Name', 'REQUIRED'], ['Category', 'REQUIRED — code or name, e.g. MOB or Mobile Phone'], ['Manufacturer', 'REQUIRED'], ['Model', 'REQUIRED'],
+  ['Asset Name', 'REQUIRED — except for SIM cards, which are named from the operator and number'], ['Category', 'REQUIRED — code or name, e.g. MOB or Mobile Phone'], ['Manufacturer', 'REQUIRED'], ['Model', 'REQUIRED'],
   ['Serial Number', 'BY CATEGORY — required for most assets, optional for SIM cards; must be unique'],
   ['IMEI Number', 'BY CATEGORY — required for phones, optional for tablets / GPS / cameras, otherwise leave blank; must be unique'],
   ['SIM Number', 'BY CATEGORY — required for SIM cards, optional where a SIM is fitted, otherwise leave blank; must be unique'],
@@ -76,9 +76,13 @@ export function validateAssets(rows: Record<string, unknown>[], db: Database): P
     // Allocation (department / location / custodian) is set when the asset is assigned; new assets register as Available / New.
     const dept = db.departments[0]?.id, loc = db.locations[0]?.id;
     if (!dept || !loc) e.push('No departments / locations defined in Master Data');
-    for (const f of ['Asset Name', 'Manufacturer', 'Model', 'Purchase Date', 'Purchase Cost', 'Warranty Start Date', 'Warranty Expiry Date', 'Specification', 'Accessories']) if (!g(f)) e.push(`${f} is required`);
-    // Which identifiers are demanded depends on the category: a SIM card needs its number, a phone its IMEI.
+    // Which columns are demanded depends on the category: a SIM card needs its number, a phone its IMEI,
+    // and an identity-only category (a SIM connection) carries no procurement or specification detail at all.
     const need = identifierNeeds(db.categories.find(c => c.id === cat));
+    const required = need.identityOnly
+      ? ['Manufacturer', 'Model']
+      : ['Asset Name', 'Manufacturer', 'Model', 'Purchase Date', 'Purchase Cost', 'Warranty Start Date', 'Warranty Expiry Date', 'Specification', 'Accessories'];
+    for (const f of required) if (!g(f)) e.push(`${f} is required`);
     if (need.serial === 'required' && !g('Serial Number')) e.push('Serial Number is required');
     if (need.imei === 'required' && !g('IMEI Number')) e.push(`IMEI Number is required for ${g('Category')}`);
     if (need.sim === 'required' && !g('SIM Number')) e.push(`SIM Number is required for ${g('Category')}`);
@@ -94,7 +98,8 @@ export function validateAssets(rows: Record<string, unknown>[], db: Database): P
     const ws = toDate(findCol(raw, 'Warranty Start Date')); if (g('Warranty Start Date') && !ws) e.push('Warranty Start Date not recognised');
     const we = toDate(findCol(raw, 'Warranty Expiry Date')); if (g('Warranty Expiry Date') && !we) e.push('Warranty Expiry Date not recognised');
     const data: AssetRow = {
-      name: g('Asset Name'), categoryId: cat ?? '', manufacturer: g('Manufacturer'), model: g('Model'), serialNumber: g('Serial Number'),
+      name: g('Asset Name') || (need.identityOnly ? [g('Manufacturer'), 'SIM', g('SIM Number')].filter(Boolean).join(' ') : ''),
+      categoryId: cat ?? '', manufacturer: g('Manufacturer'), model: g('Model'), serialNumber: g('Serial Number'),
       imei: need.imei === 'hidden' ? undefined : g('IMEI Number') || undefined,
       sim: need.sim === 'hidden' ? undefined : g('SIM Number') || undefined,
       mdmRegistered: need.mdm === 'hidden' ? undefined : yes(g('MDM Registered')),

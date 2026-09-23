@@ -34,10 +34,6 @@ export function AssetInventory() {
       total: rows.length,
       assigned: n('Assigned', 'Transferred'),
       available: n('Available'),
-      returned: n('Under Inspection', 'Returned'),
-      repair: n('Under Repair'),
-      trouble: n('Damaged', 'Lost'),
-      closed: n('Retired', 'Disposed'),
       active: rows.filter(a => !['Retired', 'Disposed', 'Lost'].includes(a.status)).length,
       value: rows.reduce((t, a) => t + (a.purchaseCost || 0), 0),
       mdmCapable: rows.filter(a => needsField(identifierNeeds(store.category(a.categoryId)).mdm)).length,
@@ -81,10 +77,6 @@ export function AssetInventory() {
           <div className="metric"><div className="label">Assigned to Employees</div><div className="value">{sum.assigned}</div><div className="sub">In an employee's custody</div></div>
           <div className="metric"><div className="label">Available</div><div className="value">{sum.available}</div><div className="sub">Free to assign</div></div>
           <div className="metric"><div className="label">Total Active</div><div className="value">{sum.active}</div><div className="sub">Excludes retired, disposed and lost</div></div>
-          <div className="metric"><div className="label">Returned</div><div className="value">{sum.returned}</div><div className="sub">Awaiting inspection</div></div>
-          <div className="metric"><div className="label">Under Repair</div><div className="value">{sum.repair}</div><div className="sub">With a vendor or workshop</div></div>
-          <div className="metric alert"><div className="label">Damaged / Lost</div><div className="value">{sum.trouble}</div><div className="sub">Reported, under investigation</div></div>
-          <div className="metric"><div className="label">Retired / Disposed</div><div className="value">{sum.closed}</div><div className="sub">Out of service</div></div>
           {sum.mdmCapable > 0 && <>
             <div className="metric"><div className="label">MDM Registered</div><div className="value">{sum.mdmYes}</div><div className="sub">Enrolled in device management</div></div>
             <div className="metric warn"><div className="label">MDM Not Registered</div><div className="value">{sum.mdmNo}</div><div className="sub">Of {sum.mdmCapable} device(s) that can be enrolled</div></div>
@@ -260,7 +252,12 @@ function AssetForm({ asset, onSaved, onClose }: { asset?: Asset; onSaved: (id: s
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const payload = { ...f, purchaseCost: Number(f.purchaseCost) || 0, imei: needsField(ids.imei) ? f.imei || undefined : undefined, sim: needsField(ids.sim) ? f.sim || undefined : undefined, mdmRegistered: needsField(ids.mdm) ? !!f.mdmRegistered : undefined, warrantyStart: f.warrantyStart || undefined, warrantyExpiry: f.warrantyExpiry || undefined };
+    const auto = ids.identityOnly ? {
+      name: f.name.trim() || [f.manufacturer.trim(), 'SIM', f.sim].filter(Boolean).join(' ').trim() || 'SIM',
+      purchaseDate: f.purchaseDate || today(), specification: undefined, accessories: undefined,
+      invoiceAttachment: undefined, warrantyAttachment: undefined, photo: undefined, warrantyStart: '', warrantyExpiry: '',
+    } : {};
+    const payload = { ...f, ...auto, purchaseCost: Number(f.purchaseCost) || 0, imei: needsField(ids.imei) ? f.imei || undefined : undefined, sim: needsField(ids.sim) ? f.sim || undefined : undefined, mdmRegistered: needsField(ids.mdm) ? !!f.mdmRegistered : undefined, warrantyStart: f.warrantyStart || undefined, warrantyExpiry: f.warrantyExpiry || undefined };
     if (asset) {
       const ok = run(() => store.updateAsset(asset.id, payload, reason), 'Asset updated.');
       if (ok !== undefined) onSaved(asset.id);
@@ -278,7 +275,7 @@ function AssetForm({ asset, onSaved, onClose }: { asset?: Asset; onSaved: (id: s
         <div className="form-grid">
           <ReadOnly label="Asset ID (auto-generated)" value={previewId} />
           <Select label="Asset Category" required value={f.categoryId} onChange={e => set('categoryId', e.target.value)} options={db.categories.map(c => ({ value: c.id, label: `${c.name} (${c.code})` }))} disabled={!!asset} />
-          <Input label="Asset Name" required value={f.name} onChange={e => set('name', e.target.value)} />
+          {!ids.identityOnly && <Input label="Asset Name" required value={f.name} onChange={e => set('name', e.target.value)} />}
           <Input label="Manufacturer" required value={f.manufacturer} onChange={e => set('manufacturer', e.target.value)} />
           <Input label="Model" required value={f.model} onChange={e => set('model', e.target.value)} />
           <Input label={ids.serialLabel} required={ids.serial === 'required'} value={f.serialNumber} onChange={e => set('serialNumber', e.target.value)} hint={ids.serialHint} />
@@ -289,7 +286,7 @@ function AssetForm({ asset, onSaved, onClose }: { asset?: Asset; onSaved: (id: s
           <Select label="Ownership Type" required value={f.ownershipType} onChange={e => set('ownershipType', e.target.value as OwnershipType)} options={OWNERSHIP_TYPES.map(o => ({ value: o, label: o }))} />
         </div>
       </Section>
-      <Section title="Procurement">
+      {!ids.identityOnly && <Section title="Procurement">
         <div className="form-grid">
           <Input label="Invoice Number" required value={f.invoiceNumber} onChange={e => set('invoiceNumber', e.target.value)} />
           <Input label="Purchase Order Number" value={f.poNumber} onChange={e => set('poNumber', e.target.value)} />
@@ -298,7 +295,7 @@ function AssetForm({ asset, onSaved, onClose }: { asset?: Asset; onSaved: (id: s
           <DateInput label="Warranty Start Date" value={f.warrantyStart ?? ''} onChange={e => set('warrantyStart', e.target.value)} />
           <DateInput label="Warranty Expiry Date" value={f.warrantyExpiry ?? ''} onChange={e => set('warrantyExpiry', e.target.value)} />
         </div>
-      </Section>
+      </Section>}
       {asset && (
       <Section title="Allocation">
         <div className="form-grid">
@@ -312,7 +309,7 @@ function AssetForm({ asset, onSaved, onClose }: { asset?: Asset; onSaved: (id: s
       </Section>
       )}
       {!asset && <div className="rule-note">New assets are registered as <b>Available</b> in condition <b>New</b>; department, location and custodian are set when the asset is assigned to an employee.</div>}
-      <Section title="Specification, Accessories & Attachments">
+      {!ids.identityOnly && <Section title="Specification, Accessories & Attachments">
         <div className="form-grid">
           <TextArea label="Configuration / Technical Specification" span={3} value={f.specification ?? ''} onChange={e => set('specification', e.target.value)} />
           <TextArea label="Accessories Included" value={f.accessories ?? ''} onChange={e => set('accessories', e.target.value)} />
@@ -322,7 +319,7 @@ function AssetForm({ asset, onSaved, onClose }: { asset?: Asset; onSaved: (id: s
           <FileInput label="Warranty Attachment" accept=".pdf,image/*" tag={previewId} kind="Warranty" onChange={(a?: Attachment) => set('warrantyAttachment', a)} hint={f.warrantyAttachment?.name} />
           <FileInput label="Asset Photograph" accept="image/*" tag={previewId} kind="Photo" onChange={(a?: Attachment) => set('photo', a)} hint={f.photo?.name} />
         </div>
-      </Section>
+      </Section>}
       <Section title="Authorisation">
         <div className="form-grid">
           <Input label={asset ? 'Reason for change' : 'Reason / Remarks for registration'} required span={2} value={reason} onChange={e => setReason(e.target.value)} />
