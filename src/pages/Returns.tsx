@@ -8,7 +8,7 @@ import { ReturnDoc } from '../documents';
 export function Returns() {
   const { db, store } = useStore();
   const [sp, setSp] = useSearchParams();
-  const { run, Messages } = useAction();
+  const { run, runOk, Messages } = useAction();
   const [open, setOpen] = useState<AssetReturn | null>(null);
   const u = store.currentUser;
 
@@ -83,7 +83,7 @@ export function Returns() {
                 <Input label="Reason" required value={iReason} onChange={e => setIReason(e.target.value)} placeholder="e.g. Routine check on return" hint="Short reason recorded on the asset's history." />
                 <TextArea label="Inspection Notes" span="full" required value={iNotes} onChange={e => setINotes(e.target.value)} placeholder="What you checked and what you found" hint="Printed on the return form as the inspection record." />
               </div>
-              <div className="btn-row end" style={{ marginTop: 10 }}><button className="btn primary" onClick={() => { const ok = run(() => store.inspectReturn(open.id, { inspectionCondition: iCond, inspectionOutcome: iOut, inspectionNotes: iNotes, reason: iReason }), 'Inspection recorded.'); if (ok !== undefined) setOpen(db.returns.find(r => r.id === open.id) ?? null); }}>Complete Inspection</button></div>
+              <div className="btn-row end" style={{ marginTop: 10 }}><button className="btn primary" onClick={() => { const ok = runOk(() => store.inspectReturn(open.id, { inspectionCondition: iCond, inspectionOutcome: iOut, inspectionNotes: iNotes, reason: iReason }), 'Inspection recorded.'); if (ok) setOpen(db.returns.find(r => r.id === open.id) ?? null); }}>Complete Inspection</button></div>
             </Section>
           )}
           <ReturnDoc ret={db.returns.find(r => r.id === open.id) ?? open} />

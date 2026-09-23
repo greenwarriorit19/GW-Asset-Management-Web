@@ -53,13 +53,13 @@ export function HandoverList() {
 /** Amends the lines of an assignment: condition, quantity, accessories and remarks. Assets and employee are fixed. */
 function HandoverEdit({ handover, onClose }: { handover: Handover; onClose: () => void }) {
   const { store } = useStore();
-  const { run, Messages } = useAction();
+  const { runOk, Messages } = useAction();
   const [items, setItems] = useState<HandoverItem[]>(handover.items.map(i => ({ ...i })));
   const [reason, setReason] = useState('');
   return (
     <Modal wide title={`Edit assignment ${handover.id}`} onClose={onClose} footer={<>
       <button className="btn ghost" onClick={onClose}>Cancel</button>
-      <button className="btn primary" disabled={reason.trim().length < 3 || items.length === 0} title={items.length === 0 ? 'Keep at least one asset, or cancel the whole assignment' : undefined} onClick={() => { if (run(() => store.updateHandoverItems(handover.id, items, reason), 'Assignment updated.') !== undefined) onClose(); }}>Save Changes</button>
+      <button className="btn primary" disabled={reason.trim().length < 3 || items.length === 0} title={items.length === 0 ? 'Keep at least one asset, or cancel the whole assignment' : undefined} onClick={() => { if (runOk(() => store.updateHandoverItems(handover.id, items, reason), 'Assignment updated.')) onClose(); }}>Save Changes</button>
     </>}>
       <Messages />
       <p className="muted small" style={{ marginTop: 0 }}>Assigned to <b>{store.employeeName(handover.employeeId)}</b>. Condition, quantity, accessories and remarks can be corrected, and an asset can be removed — it goes straight back to <b>Available</b>. Adding a different asset means raising a new assignment.</p>
@@ -127,7 +127,7 @@ export function HandoverNew() {
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const h = run(() => store.createHandover({ employeeId, issuedByUserId: issuedBy, items, reason }));
+    const h = run(() => store.createHandover({ employeeId, issuedByUserId: issuedBy, items, reason }), 'Assignment saved; the assets are now assigned.');
     if (h) nav(`/handovers/${h.id}`);
   };
 

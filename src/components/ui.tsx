@@ -1,9 +1,10 @@
-import { useEffect, useState, type ReactNode, type ChangeEvent } from 'react';
+import { useState, type ReactNode, type ChangeEvent } from 'react';
 import { createPortal } from 'react-dom';
 import type { Attachment } from '../data/types';
 import { SearchSelect, type Option } from './SearchSelect';
 import { askReason } from './Dialog';
 import { DatePicker, type DatePickerProps } from './DatePicker';
+import { useStore } from '../data/context';
 import { driveEnabled, uploadToDrive, driveFileName } from '../lib/drive';
 export { SearchSelect };
 
@@ -208,14 +209,19 @@ export const fmtSize = (n: number) => n > 1_000_000 ? (n / 1_000_000).toFixed(1)
 
 /** Runs a store action, capturing BusinessRuleError messages for display. */
 export function useAction() {
+  const { store } = useStore();
   const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
+  // The success toast is held on the session, so it still appears when the action moves the page on.
   const run = <T,>(fn: () => T, successMsg?: string): T | undefined => {
-    try { setError(null); const r = fn(); if (successMsg) setOk(successMsg); return r; }
-    catch (e) { setOk(null); setError(e instanceof Error ? e.message : String(e)); return undefined; }
+    try { setError(null); const r = fn(); store.notify(successMsg ?? 'Saved.'); return r; }
+    catch (e) { store.clearNotice(); setError(e instanceof Error ? e.message : String(e)); return undefined; }
   };
-  // Success notices disappear on their own after 3 seconds; errors stay until the next action.
-  useEffect(() => { if (!ok) return; const t = setTimeout(() => setOk(null), 3000); return () => clearTimeout(t); }, [ok]);
-  const Messages = () => <>{error && <Alert kind="error">{error}</Alert>}{ok && <div className="toast" role="status">{ok}</div>}</>;
-  return { run, error, ok, Messages, clear: () => { setError(null); setOk(null); } };
+  /** True when the action completed. Use for store calls that return nothing — `run(...) !== undefined`
+   *  is always false for those, which used to leave dialogs open after a successful save. */
+  const runOk = (fn: () => unknown, successMsg?: string): boolean => {
+    try { setError(null); fn(); store.notify(successMsg ?? 'Saved.'); return true; }
+    catch (e) { store.clearNotice(); setError(e instanceof Error ? e.message : String(e)); return false; }
+  };
+  const Messages = () => <>{error && <Alert kind="error">{error}</Alert>}</>;
+  return { run, runOk, error, Messages, clear: () => { setError(null); store.clearNotice(); } };
 }

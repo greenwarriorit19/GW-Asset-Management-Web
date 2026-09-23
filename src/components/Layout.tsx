@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { SearchSelect } from './SearchSelect';
 import { useStore } from '../data/context';
@@ -9,6 +9,9 @@ interface NavItem { to: string; label: string; perm?: Permission | Permission[];
 export function Layout() {
   const { db, store, session } = useStore();
   const [open, setOpen] = useState(false);
+  // One confirmation toast for the whole app; it clears itself after three seconds.
+  const notice = session.notice;
+  useEffect(() => { if (!notice) return; const t = setTimeout(() => store.clearNotice(), 3000); return () => clearTimeout(t); }, [notice, store]);
   const u = store.currentUser;
   const has = (p?: Permission | Permission[]) => !p || (Array.isArray(p) ? p.some(x => store.can(x)) : store.can(p));
 
@@ -86,6 +89,7 @@ export function Layout() {
           </div>
         </div>
       )}
+      {notice && <div className="toast" role="status" key={notice.at}>{notice.message}</div>}
       <main className="main"><Outlet /></main>
     </div>
   );

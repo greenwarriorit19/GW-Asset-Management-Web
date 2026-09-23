@@ -35,10 +35,10 @@ export function BulkImport() {
 
   const doImport = () => {
     if (kind === 'assets') {
-      const ids = run(() => store.importAssets(valid.map(r => (r as Parsed<AssetRow>).data), reason), undefined);
+      const ids = run(() => store.importAssets(valid.map(r => (r as Parsed<AssetRow>).data), reason), `${valid.length} asset(s) imported.`);
       if (ids) { setDone(ids); setAssets(null); setFile(null); }
     } else {
-      const ids = run(() => store.importEmployees(valid.map(r => (r as Parsed<EmployeeRow>).data), reason), undefined);
+      const ids = run(() => store.importEmployees(valid.map(r => (r as Parsed<EmployeeRow>).data), reason), `${valid.length} employee(s) imported.`);
       if (ids) { setDone(ids); setEmps(null); setFile(null); }
     }
   };

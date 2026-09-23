@@ -37,6 +37,7 @@ export interface SessionState {
   email?: string;               // signed-in Supabase email (supabase mode)
   error?: string;               // load / login error
   sync: { state: 'idle' | 'saving' | 'saved' | 'error'; message?: string; at?: string };
+  notice?: { message: string; at: number };   // "Saved" confirmation, shown until it is cleared
 }
 
 /** Department Head, Employee and Auditor were retired: drop them wherever nobody still holds one. */
@@ -107,6 +108,10 @@ export class Store {
     catch (e) { this.unsubscribeRealtime = undefined; console.warn('Live updates are unavailable; the app will not refresh by itself.', e); }
     this.setSession({ phase: 'ready', email, error: undefined, sync: { state: 'idle' } });
   }
+
+  /** Confirms a completed action to the user. Lives on the session so it survives the page moving on. */
+  notify(message: string) { this.setSession({ notice: { message, at: Date.now() } }); }
+  clearNotice() { if (this.session.notice) this.setSession({ notice: undefined }); }
 
   async login(email: string, password: string) {
     this.setSession({ error: undefined });

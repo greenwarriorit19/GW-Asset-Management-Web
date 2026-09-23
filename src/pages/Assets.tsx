@@ -237,7 +237,7 @@ type FormState = Omit<Asset, 'id' | 'status' | 'registeredBy' | 'registeredAt' |
 
 function AssetForm({ asset, onSaved, onClose }: { asset?: Asset; onSaved: (id: string) => void; onClose?: () => void }) {
   const { db, store } = useStore();
-  const { run, Messages } = useAction();
+  const { run, runOk, Messages } = useAction();
   const [reason, setReason] = useState(asset ? '' : 'New asset received against invoice');
   const [f, setF] = useState<FormState>(() => asset ? { ...asset, purchaseCost: String(asset.purchaseCost) } : {
     categoryId: db.categories[0]?.id ?? '', name: '', manufacturer: '', model: '', serialNumber: '', imei: '', sim: '', mdmRegistered: false, barcode: '',
@@ -257,10 +257,9 @@ function AssetForm({ asset, onSaved, onClose }: { asset?: Asset; onSaved: (id: s
     const auto = ids.identityOnly ? { purchaseDate: f.purchaseDate || today() } : {};
     const payload = { ...f, ...auto, purchaseCost: Number(f.purchaseCost) || 0, imei: needsField(ids.imei) ? f.imei || undefined : undefined, sim: needsField(ids.sim) ? f.sim || undefined : undefined, mdmRegistered: needsField(ids.mdm) ? !!f.mdmRegistered : undefined, warrantyStart: f.warrantyStart || undefined, warrantyExpiry: f.warrantyExpiry || undefined };
     if (asset) {
-      const ok = run(() => store.updateAsset(asset.id, payload, reason), 'Asset updated.');
-      if (ok !== undefined) onSaved(asset.id);
+      if (runOk(() => store.updateAsset(asset.id, payload, reason), 'Asset updated.')) onSaved(asset.id);
     } else {
-      const created = run(() => store.registerAsset({ ...payload, reason }));
+      const created = run(() => store.registerAsset({ ...payload, reason }), 'Asset registered.');
       if (created) onSaved(created.id);
     }
   };
