@@ -5,12 +5,16 @@ import { identifierNeeds } from './categoryFields';
 
 export const ASSET_COLUMNS = [
   ['Asset Name', 'REQUIRED'], ['Category', 'REQUIRED — code or name, e.g. MOB or Mobile Phone'], ['Manufacturer', 'REQUIRED'], ['Model', 'REQUIRED'],
-  ['Serial Number', 'REQUIRED — must be unique (optional for SIM cards)'], ['IMEI Number', 'REQUIRED for phones; optional for tablets / GPS / cameras; leave blank otherwise'],
-  ['SIM Number', 'REQUIRED for SIM cards; optional where a SIM is fitted; leave blank otherwise'],   ['Ownership Type', `optional — one of: ${OWNERSHIP_TYPES.join(', ')} (default Company Owned)`], ['Invoice Number', 'optional'],
+  ['Serial Number', 'BY CATEGORY — required for most assets, optional for SIM cards; must be unique'],
+  ['IMEI Number', 'BY CATEGORY — required for phones, optional for tablets / GPS / cameras, otherwise leave blank; must be unique'],
+  ['SIM Number', 'BY CATEGORY — required for SIM cards, optional where a SIM is fitted, otherwise leave blank; must be unique'],   ['Ownership Type', `optional — one of: ${OWNERSHIP_TYPES.join(', ')} (default Company Owned)`], ['Invoice Number', 'optional'],
   ['Purchase Date', 'REQUIRED — date (YYYY-MM-DD or Excel date)'], ['Purchase Cost', 'REQUIRED — number in ₹'], ['Warranty Start Date', 'REQUIRED — date'], ['Warranty Expiry Date', 'REQUIRED — date'],
   ['Specification', 'REQUIRED'], ['Accessories', 'REQUIRED — comma-separated, e.g. Charger - Moto 33W, Back case x2'], ['Maintenance Notes', 'optional'], ['Remarks', 'optional'],
 ] as const;
 
+
+/** Identifier columns whose requirement depends on the asset's category (see categoryFields). */
+const BY_CATEGORY: string[] = ['Serial Number', 'IMEI Number', 'SIM Number'];
 
 export const EMPLOYEE_COLUMNS = [
   ['Employee ID', 'optional — e.g. GW-EMP-0031; generated when blank'], ['ERP ID', 'optional — reference in the ERP / payroll system'], ['Employee Name', 'required'], ['Designation', 'required'], ['Department', 'required — code or name'],
@@ -34,6 +38,8 @@ function findCol(row: Record<string, unknown>, name: string): unknown {
   for (const k of Object.keys(row)) if (key(k) === want) return row[k];
   // tolerate shortened headers: "Serial" for "Serial Number", "Category" etc.
   for (const k of Object.keys(row)) if (want.startsWith(key(k)) && key(k).length >= 4) return row[k];
+  // …and headers the template annotates: "Serial Number *", "IMEI Number (by category)"
+  for (const k of Object.keys(row)) if (key(k).startsWith(want) && want.length >= 4) return row[k];
   return undefined;
 }
 
@@ -125,16 +131,25 @@ export async function readSheet(file: File, sheetName?: string): Promise<{ rows:
   return { rows, sheets };
 }
 
+/** The header row the template writes: * = always required, (by category) = depends on the asset's category. */
+export function assetTemplateHeaders(): string[] {
+  return ASSET_COLUMNS.map(c => BY_CATEGORY.includes(c[0]) ? `${c[0]} (by category)` : c[1].startsWith('REQUIRED') ? `${c[0]} *` : c[0]);
+}
+
 /** Downloads the Excel template: Assets + Employees sheets with headers, an example row, and an Instructions sheet listing valid values. */
 export async function downloadTemplate(db: Database) {
   const XLSX = await import('xlsx');
   const wb = XLSX.utils.book_new();
-  const assetHeaders = ASSET_COLUMNS.map(c => c[0]);
-  const example = ['Samsung Galaxy A35', 'MOB', 'Samsung', 'SM-A356E', 'R58X3A1B2C99', '356938035640000', '', 'Company Owned', 'PV/2026/0001', '2026-09-01', 24999, '2026-09-01', '2027-08-31', '8 GB RAM / 128 GB', 'Charger - 25W, USB-C cable, Back case', '', ''];
-  const wa = XLSX.utils.aoa_to_sheet([assetHeaders, example]);
+  const assetHeaders = assetTemplateHeaders();
+  const examples = [
+    // One example per identifier shape: a phone needs an IMEI, a SIM card needs its number, a laptop needs neither.
+    ['Samsung Galaxy A35', 'MOB', 'Samsung', 'SM-A356E', 'R58X3A1B2C99', '356938035640000', '', 'Company Owned', 'PV/2026/0001', '2026-09-01', 24999, '2026-09-01', '2027-08-31', '8 GB RAM / 128 GB', 'Charger - 25W, USB-C cable, Back case', '', ''],
+    ['Airtel connection', 'SIM', 'Airtel', 'Prepaid', '8991000012345678901', '', '9840000001', 'Company Owned', 'PV/2026/0002', '2026-09-01', 199, '', '', 'Unlimited voice + 2 GB/day', 'SIM tray pin', '', ''],
+    ['Dell Latitude 5540', 'LAP', 'Dell', 'Latitude 5540', 'DL5540X9912', '', '', 'Company Owned', 'PV/2026/0003', '2026-09-01', 68500, '2026-09-01', '2029-08-31', 'i5 / 16 GB / 512 GB SSD', 'Charger - 65W, Laptop bag', '', ''],
+  ];
+  const wa = XLSX.utils.aoa_to_sheet([assetHeaders, ...examples]);
   wa['!cols'] = assetHeaders.map(h => ({ wch: Math.max(14, h.length + 2) }));
   // Mark mandatory columns with a * in the header (cell colours are not supported by the community build of SheetJS).
-  ASSET_COLUMNS.forEach((c, i) => { if (c[1].startsWith('REQUIRED')) { const ref = XLSX.utils.encode_cell({ r: 0, c: i }); wa[ref].v = `${c[0]} *`; } });
   XLSX.utils.book_append_sheet(wb, wa, 'Assets');
   const empHeaders = EMPLOYEE_COLUMNS.map(c => c[0]);
   const we = XLSX.utils.aoa_to_sheet([empHeaders, ['', 'ERP-1042', 'A. Kumar', 'Field Supervisor', 'OPS', '2026-09-01', 'PM', '+91 98400 00000', 'kumar@greenwarrior.in', 'Yes']]);
@@ -143,14 +158,16 @@ export async function downloadTemplate(db: Database) {
   const instr: (string | number)[][] = [
     ['GREEN WARRIOR — BULK IMPORT TEMPLATE'], [''],
     ['Fill the Assets and/or Employees sheet, one record per row, keep the header row, then upload the file under Assets → Bulk Import.'],
-    ['Delete the example row before uploading. Categories, departments and locations must already exist (Master Data). Codes or names are both accepted.'], [''],
+    ['Delete the three example rows before uploading. Categories, departments and locations must already exist (Master Data). Codes or names are both accepted.'],
+    ['Columns marked * are always required. Serial Number, IMEI Number and SIM Number are marked "(by category)" — what each category needs is listed under VALID CATEGORIES below.'], [''],
     ['ASSET COLUMNS'], ...ASSET_COLUMNS.map(c => [c[0], c[1]]), [''],
     ['EMPLOYEE COLUMNS'], ...EMPLOYEE_COLUMNS.map(c => [c[0], c[1]]), [''],
-    ['VALID CATEGORIES'], ...db.categories.map(c => [c.code, c.name]), [''],
+    ['VALID CATEGORIES — and the identifiers each one needs'], ['Code', 'Name', 'Serial Number / IMEI Number / SIM Number'],
+    ...db.categories.map(c => { const n = identifierNeeds(c); return [c.code, c.name, `${n.serial} / ${n.imei === 'hidden' ? 'leave blank' : n.imei} / ${n.sim === 'hidden' ? 'leave blank' : n.sim}`]; }), [''],
     ['VALID DEPARTMENTS (Employees sheet)'], ...db.departments.map(d => [d.code, d.name]), [''],
     ['VALID LOCATIONS (Employees sheet)'], ...db.locations.map(l => [l.code, l.name]),
   ];
-  const wi = XLSX.utils.aoa_to_sheet(instr); wi['!cols'] = [{ wch: 28 }, { wch: 90 }];
+  const wi = XLSX.utils.aoa_to_sheet(instr); wi['!cols'] = [{ wch: 28 }, { wch: 60 }, { wch: 46 }];
   XLSX.utils.book_append_sheet(wb, wi, 'Instructions');
   XLSX.writeFile(wb, 'GW-Asset-Bulk-Import-Template.xlsx');
 }

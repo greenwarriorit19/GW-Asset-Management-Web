@@ -544,16 +544,19 @@ describe('Bulk import (Excel)', () => {
   });
   it('template and upload round-trip through a real .xlsx file', async () => {
     const XLSX = await import('xlsx');
-    const { readSheet, validateAssets, ASSET_COLUMNS } = await import('../src/lib/bulk');
-    const headers = ASSET_COLUMNS.map(c => c[1].startsWith('REQUIRED') ? `${c[0]} *` : c[0]);   // as the template writes them
+    const { readSheet, validateAssets, assetTemplateHeaders } = await import('../src/lib/bulk');
+    const headers = assetTemplateHeaders();   // exactly the header row the template writes, annotations and all
     const row = ['Excel Phone', 'MOB', 'Samsung', 'A16', 'XL-1', '111', '', 'Company Owned', 'I', new Date(2026, 8, 1), 12000, '2026-09-01', '2027-08-31', '8 GB', 'Charger', '', ''];
-    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([headers, row]), 'Assets');
+    const simRow = ['Excel SIM', 'SIM', 'Airtel', 'Prepaid', '', '', '9840000009', 'Company Owned', 'I', new Date(2026, 8, 1), 199, '2026-09-01', '2027-08-31', 'Unlimited', 'Pin', '', ''];
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([headers, row, simRow]), 'Assets');
     const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
     const file = { name: 't.xlsx', arrayBuffer: async () => buf } as unknown as File;
     const { rows } = await readSheet(file, 'Assets');
     const v = validateAssets(rows, s.getSnapshot());
-    expect(v).toHaveLength(1); expect(v[0].errors).toEqual([]);
-    expect(v[0].data).toMatchObject({ name: 'Excel Phone', serialNumber: 'XL-1', purchaseDate: '2026-09-01', purchaseCost: 12000, condition: 'New', accessories: 'Charger' });
+    expect(v).toHaveLength(2); expect(v[0].errors).toEqual([]);
+    expect(v[0].data).toMatchObject({ name: 'Excel Phone', serialNumber: 'XL-1', imei: '111', purchaseDate: '2026-09-01', purchaseCost: 12000, condition: 'New', accessories: 'Charger' });
+    expect(v[1].errors).toEqual([]);                                                   // a SIM row needs no serial and no IMEI
+    expect(v[1].data).toMatchObject({ name: 'Excel SIM', categoryId: 'C-SIM', serialNumber: '', sim: '9840000009', imei: undefined });
   });
 });
 

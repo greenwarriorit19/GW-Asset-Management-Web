@@ -58,9 +58,10 @@ export function BulkImport() {
         <Section title="1. Prepare the file">
           <ol className="small" style={{ lineHeight: 1.8, paddingLeft: 18, margin: 0 }}>
             <li><b>Download Excel Template</b> (top right). It has an <b>Assets</b> sheet, an <b>Employees</b> sheet and an <b>Instructions</b> sheet listing every column and the valid categories, departments and locations.</li>
-            <li>Fill one record per row under the headers. Delete the example row. Categories, departments and locations can be entered by code (<span className="mono">MOB</span>) or name (<span className="mono">Mobile Phone</span>).</li>
+            <li>Fill one record per row under the headers. Delete the example rows. Categories, departments and locations can be entered by code (<span className="mono">MOB</span>) or name (<span className="mono">Mobile Phone</span>).</li>
+            <li>Headers marked <b>*</b> are always required. <b>Serial Number</b>, <b>IMEI Number</b> and <b>SIM Number</b> are marked <b>(by category)</b> — a phone needs an IMEI, a SIM card needs its SIM number, a laptop needs neither. The Instructions sheet lists the rule for every category.</li>
             <li>Dates as <span className="mono">YYYY-MM-DD</span> or Excel date cells; cost as a plain number.</li>
-            <li>Upload here. Every row is checked (required fields, duplicate serial / IMEI / SIM against the register and within the file, unknown codes). Only valid rows are imported; errors are listed per row so you can fix and re-upload the rest.</li>
+            <li>Upload here. Every row is checked (required fields, the identifiers that category needs, duplicate serial / IMEI / SIM against the register and within the file, unknown codes). Only valid rows are imported; errors are listed per row so you can fix and re-upload the rest.</li>
           </ol>
         </Section>
         <Section title={`2. Upload — ${kind === 'assets' ? 'Assets' : 'Employees'} sheet`}>
