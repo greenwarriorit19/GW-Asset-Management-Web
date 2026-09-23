@@ -13,13 +13,13 @@ function AssetItemsTable({ rows }: { rows: { asset?: Asset; assetId: string; con
   const { store } = useStore();
   return (
     <table className="list">
-      <thead><tr><th>#</th><th>Asset ID / Accessories</th><th>Asset Type</th><th>Make and Model</th><th>Serial / IMEI / SIM</th><th>Condition</th><th>Qty</th><th>Remarks</th></tr></thead>
+      <thead><tr><th>#</th><th>Asset ID / Accessories</th><th>Asset Type</th><th>Make and Model</th><th>Serial No</th><th>IMEI No</th><th>SIM No</th><th>Condition</th><th>Qty</th><th>Remarks</th></tr></thead>
       <tbody>
         {rows.map((it, i) => { const a = it.asset ?? store.asset(it.assetId); const acc = parseAccessories(it.accessories); return (
           <Fragment key={it.assetId + i}>
             <tr><td>{i + 1}</td><td><b>{it.assetId}</b></td><td>{store.catName(a?.categoryId)}</td><td>{a ? `${a.manufacturer} ${a.model}` : ''}</td>
-              <td>{[a?.serialNumber, a?.imei, a?.sim].filter(Boolean).join(' / ')}</td><td>{it.condition ?? a?.condition ?? ''}</td><td>{it.quantity ?? 1}</td><td>{it.remarks ?? ''}</td></tr>
-            {acc.map((x, j) => <tr key={j} className="sub"><td>{roman(j + 1)}</td><td>Accessories</td><td>{x.name}</td><td>{x.model}</td><td></td><td></td><td>{x.qty}</td><td></td></tr>)}
+              <td>{a?.serialNumber || '—'}</td><td>{a?.imei || '—'}</td><td>{a?.sim || '—'}</td><td>{it.condition ?? a?.condition ?? ''}</td><td>{it.quantity ?? 1}</td><td>{it.remarks ?? ''}</td></tr>
+            {acc.map((x, j) => <tr key={j} className="sub"><td>{roman(j + 1)}</td><td>Accessories</td><td>{x.name}</td><td>{x.model}</td><td></td><td></td><td></td><td></td><td>{x.qty}</td><td></td></tr>)}
           </Fragment>); })}
       </tbody>
     </table>
@@ -111,7 +111,7 @@ export function HandoverDoc({ handover }: { handover: Handover }) {
       acknowledgement={ACK}
       signatures={[
         { label: 'Employee Signature', value: h.employeeSignature, date: h.acknowledgedAt },
-        { label: 'Issued By', value: store.userName(h.issuedByUserId), sub: personWithTitle(store, h.issuedByUserId).split(' — ')[1], date: h.date },
+        { label: 'Issued By', sub: personWithTitle(store, h.issuedByUserId).split(' — ')[1], date: h.date },
         { label: 'Authorized Signatory', value: h.authorizedSignatoryUserId ? store.userName(h.authorizedSignatoryUserId) : undefined, sub: personWithTitle(store, h.authorizedSignatoryUserId).split(' — ')[1], date: h.acknowledgedAt },
         { label: 'Department Head', value: undefined, sub: store.employee(store.department(store.employee(h.employeeId)?.departmentId)?.headEmployeeId)?.name },
       ]}>
