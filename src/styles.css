@@ -260,9 +260,10 @@ table.data .empty { text-align: center; color: var(--grey-500); padding: 24px; }
 .a4 .signatures.cols-3 { grid-template-columns: repeat(3, 1fr); }
 .a4 .sig { font-size: 10px; }
 .a4 .sig .name { font-weight: 600; color: var(--navy); }
- /* A clear band to sign by hand, closed by the signature rule; the label sits underneath it. */
+ /* A ruled box to sign inside by hand — borders print even when the browser leaves backgrounds out. */
 .a4 .sig .val { font-family: 'Segoe Script', 'Brush Script MT', cursive; font-size: 13px; color: var(--navy);
-  min-height: 46px; display: flex; align-items: flex-end; padding-bottom: 3px; margin-bottom: 4px; border-bottom: 1px solid var(--charcoal); }
+  min-height: 56px; display: flex; align-items: flex-end; padding: 0 6px 4px; margin-bottom: 4px;
+  border: 1px solid var(--grey-300); border-bottom: 1px solid var(--charcoal); }
 .a4 .doc-footer { position: absolute; left: 16mm; right: 16mm; bottom: 8mm; border-top: 1px solid var(--grey-300); padding-top: 4px; font-size: 9px; color: var(--grey-700); display: flex; justify-content: space-between; }
 .a4 .qr { text-align: right; } .a4 .qr img { width: 72px; height: 72px; }
 .a4 .blank { display: inline-block; min-width: 120px; border-bottom: 1px dotted var(--grey-500); }
