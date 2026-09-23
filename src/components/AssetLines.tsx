@@ -29,7 +29,7 @@ export function AssetLines({ items, setItems, allowRemove, empty }: Props) {
   return (
     <div className="table-wrap">
       <table className="data assign">
-        <thead><tr><th className="ix">#</th><th>Asset ID / Accessories</th><th>Asset Type</th><th>Make and Model</th><th>Serial / IMEI / SIM</th><th>Condition</th><th>Qty</th><th>Remarks</th><th /></tr></thead>
+        <thead><tr><th className="ix">#</th><th>Asset ID / Accessories</th><th>Asset Type</th><th>Model</th><th>Serial / IMEI / SIM</th><th>Condition</th><th>Qty</th><th>Remarks</th><th /></tr></thead>
         <tbody>
           {items.length === 0 && empty !== undefined && <tr><td className="empty" colSpan={9}>{empty}</td></tr>}
           {items.map((it, i) => { const a = store.asset(it.assetId); const acc = rowsFor(it.assetId, it.accessories);

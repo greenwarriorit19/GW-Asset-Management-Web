@@ -13,7 +13,7 @@ function AssetItemsTable({ rows }: { rows: { asset?: Asset; assetId: string; con
   const { store } = useStore();
   return (
     <table className="list">
-      <thead><tr><th className="narrow">#</th><th>Asset ID / Accessories</th><th>Asset Type</th><th>Make and Model</th><th className="idc">Serial No</th><th className="idc">IMEI / SIM No</th><th className="narrow">Condition</th><th className="narrow">Qty</th><th>Remarks</th></tr></thead>
+      <thead><tr><th className="narrow">#</th><th>Asset ID / Accessories</th><th>Asset Type</th><th>Model</th><th className="idc">Serial No</th><th className="idc">IMEI / SIM No</th><th className="narrow">Condition</th><th className="narrow">Qty</th><th>Remarks</th></tr></thead>
       <tbody>
         {rows.map((it, i) => { const a = it.asset ?? store.asset(it.assetId); const acc = parseAccessories(it.accessories); return (
           <Fragment key={it.assetId + i}>
@@ -121,7 +121,7 @@ export function HandoverDoc({ handover }: { handover: Handover }) {
       <h4>Assignment Details</h4>
       <Fields rows={[
         ['Assignment Reference No', h.id], ['Assigned Date', fmtDate(h.date)],
-        ['Issued By', personWithTitle(store, h.issuedByUserId)], ['Status', h.status === 'Rejected' ? 'Cancelled' : h.status],
+        ['Issued By', store.userName(h.issuedByUserId)], ['Status', h.status === 'Rejected' ? 'Cancelled' : h.status],
       ]} />
       <h4>Assets Assigned</h4>
       <AssetItemsTable rows={h.items} />
