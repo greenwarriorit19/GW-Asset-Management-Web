@@ -76,7 +76,10 @@ export function Layout() {
       </nav>
       {session.mode === 'supabase' && session.sync.state === 'error' && (
         <div className="sync-error" role="alert">
-          <div><b>Not saved to the server.</b> <span className="mono">{session.sync.message?.replace('Not saved to the server: ', '')}</span><div className="small">Your change is still on screen. Fix the cause or press Retry; nothing is lost.</div></div>
+          <div><b>Not saved to the server.</b> <span className="mono">{session.sync.message?.replace('Not saved to the server: ', '')}</span>
+            <div className="small">{/^.*Could not find the '(\w+)' column/.test(session.sync.message ?? '')
+              ? <>The shared database is behind this version of the app — a column it needs is missing. Open Supabase → SQL Editor, run <span className="mono">supabase/schema.sql</span> (it is safe to re-run), then press Retry save. Nothing is lost.</>
+              : <>Your change is still on screen. Fix the cause or press Retry; nothing is lost.</>}</div></div>
           <div className="btn-row">
             <button className="btn sm" onClick={() => navigator.clipboard?.writeText(session.sync.message ?? '')}>Copy error</button>
             <button className="btn sm primary" onClick={() => store.retrySave()}>Retry save</button>
