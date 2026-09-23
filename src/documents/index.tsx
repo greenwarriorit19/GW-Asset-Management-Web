@@ -101,7 +101,7 @@ export function RegistrationDoc({ asset }: { asset: Asset }) {
   );
 }
 
-// 2. Employee Asset Handover Form
+// 2. Asset Assignment to Employee Form
 export function HandoverDoc({ handover }: { handover: Handover }) {
   const { store } = useStore();
   const h = handover;
@@ -116,7 +116,7 @@ export function HandoverDoc({ handover }: { handover: Handover }) {
         { label: 'Department Head', value: undefined, sub: store.employee(store.department(store.employee(h.employeeId)?.departmentId)?.headEmployeeId)?.name },
       ]}>
       <EmployeeBlock e={e} />
-      <h4>Handover Details</h4>
+      <h4>Assignment Details</h4>
       <Fields rows={[
         ['Assignment Reference No', h.id], ['Assigned Date', fmtDate(h.date)],
         ['Issued By', personWithTitle(store, h.issuedByUserId)], ['Status', h.status === 'Rejected' ? 'Cancelled' : h.status],

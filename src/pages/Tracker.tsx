@@ -46,7 +46,7 @@ export function Tracker() {
 
       {!term && (
         <Section title="How to use">
-          <p>Type or scan an Asset ID to see everything recorded against that asset in one place: current custodian and status, every handover, return, transfer, repair, loss/damage report, retirement/disposal record, attached documents and the complete transaction timeline.</p>
+          <p>Type or scan an Asset ID to see everything recorded against that asset in one place: current custodian and status, every assignment, return, transfer, repair, loss/damage report, retirement/disposal record, attached documents and the complete transaction timeline.</p>
           <div className="btn-row">{store.visibleAssets().map(x => ({ x, n: db.transactions.filter(t => t.assetId === x.id).length })).sort((p, q) => q.n - p.n).slice(0, 8).map(({ x }) => <button key={x.id} type="button" className="btn sm ghost mono" onClick={() => { setQ(x.id); setSp({ asset: x.id }); }}>{x.id}</button>)}</div>
         </Section>
       )}

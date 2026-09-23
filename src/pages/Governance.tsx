@@ -81,7 +81,7 @@ export function DocumentsPage() {
           <Section title="Upload Document">
             <div className="form-grid cols-4">
               <Select label="Asset" value={assetId} onChange={e => { setAssetId(e.target.value); if (entityType === 'Asset') setEntityId(e.target.value); }} placeholder="Not asset-specific" options={entityOptions.Asset} />
-              <Select label="Linked Record Type" value={entityType} onChange={e => { setEntityType(e.target.value); setEntityId(e.target.value === 'Asset' ? assetId : ''); }} options={Object.keys(entityOptions).map(k => ({ value: k, label: k }))} />
+              <Select label="Linked Record Type" value={entityType} onChange={e => { setEntityType(e.target.value); setEntityId(e.target.value === 'Asset' ? assetId : ''); }} options={Object.keys(entityOptions).map(k => ({ value: k, label: k === 'Handover' ? 'Assignment' : k }))} />
               <Select label="Linked Record" required value={entityId} onChange={e => setEntityId(e.target.value)} placeholder="Select…" options={entityOptions[entityType]} />
               <Select label="Document Type" value={docType} onChange={e => setDocType(e.target.value)} options={['Invoice', 'Warranty', 'Photograph', 'Purchase Order', 'Quotation', 'Service Report', 'Signed Assignment Form', 'Signed Return Form', 'Incident Evidence', 'Police Report', 'Proof of Disposal', 'Data Erasure Certificate', 'Other'].map(t => ({ value: t, label: t }))} />
               <FileInput label="File" required span={2} accept=".pdf,image/*,.doc,.docx,.xls,.xlsx" tag={assetId || entityId || undefined} kind={docType} onChange={setAtt} />
@@ -332,6 +332,16 @@ export function SettingsPage() {
               {blockers.length ? 'Delete (has asset history — mark Inactive instead)' : 'Delete Employee'}
             </button>); })()}
           <button className="btn ghost" onClick={() => setEmp(null)}>Cancel</button><button className="btn primary" onClick={() => { if (run(() => store.saveEmployee(emp), 'Employee saved.') !== undefined) setEmp(null); }}>Save</button></>}>
+        {(() => {
+          const saved = db.employees.some(x => x.id === emp.id);
+          const login = saved ? store.employeeLogin(emp.id) : undefined;
+          const live = store.mode === 'supabase';
+          const canLogin = store.can('users.manage');
+          const pwHint = !live ? 'Logins exist only when the app is connected to the shared database.'
+            : !saved ? 'Save the employee first, then reopen this record to set a password.'
+            : login ? 'This employee already has a login. Passwords are never shown — send a reset link and they choose a new one.'
+            : `${empPw.length < 8 ? `${empPw.length}/8 characters — at least 8 required` : `${empPw.length} characters ✓`}, then press Create Login. Share it with the employee; they can change it later.`;
+          return (
         <div className="form-grid cols-2">
           <Input label="Employee ID" required value={emp.employeeCode} onChange={e => setEmp({ ...emp, employeeCode: e.target.value })} />
           <Input label="Employee Name" required value={emp.name} onChange={e => setEmp({ ...emp, name: e.target.value })} />
@@ -341,46 +351,33 @@ export function SettingsPage() {
           <DateInput label="Date of Joining" value={emp.dateOfJoining} onChange={e => setEmp({ ...emp, dateOfJoining: e.target.value })} />
           <Select label="Work Location" value={emp.workLocationId} onChange={e => setEmp({ ...emp, workLocationId: e.target.value })} options={db.locations.map(l => ({ value: l.id, label: l.name }))} />
           <Input label="Mobile Number" value={emp.mobile} onChange={e => setEmp({ ...emp, mobile: e.target.value })} />
-          <Input label="Email Address" type="email" value={emp.email} onChange={e => setEmp({ ...emp, email: e.target.value })} />
-          <label className="checkbox field"><input type="checkbox" checked={emp.active} onChange={e => setEmp({ ...emp, active: e.target.checked })} /> Active (inactive employees cannot receive handovers)</label>
-          {store.can('users.manage') && (() => {
-            const saved = db.employees.some(x => x.id === emp.id);
-            const login = saved ? store.employeeLogin(emp.id) : undefined;
-            const live = store.mode === 'supabase';
-            return (
-              <div className="field" style={{ gridColumn: '1 / -1' }}>
-                <label>App Login{login && <> · <span className="mono small">{login.email}</span> <Status value="Active" /></>}</label>
-                {!live ? <p className="hint">This build stores data in the browser, so there are no logins. Connect Supabase to give employees access.</p>
-                  : !saved ? <p className="hint">Save the employee first, then reopen this record to create their login.</p>
-                  : (
-                  <>
-                    <div className="form-grid cols-2" style={{ marginTop: 4 }}>
-                      <Input label="Login Email" type="email" value={emp.email} onChange={e => setEmp({ ...emp, email: e.target.value })} hint="The employee signs in with this address. Save the record after changing it." />
-                      {login
-                        ? <div className="field"><label>Password</label><p className="hint" style={{ marginTop: 6 }}>This employee already has a login. Passwords are never shown; send a reset link instead and they choose a new one.</p></div>
-                        : <PasswordInput label="Initial password" minLength={8} autoComplete="new-password" value={empPw} onChange={e => setEmpPw(e.target.value)}
-                            hint={`${empPw.length < 8 ? `${empPw.length}/8 characters — at least 8 required` : `${empPw.length} characters ✓`}. Share it with the employee; they can change it later.`} />}
-                    </div>
-                    <div className="btn-row" style={{ marginTop: 8 }}>
-                      {!login && <button type="button" className="btn sm primary" disabled={empLoginBusy || empPw.length < 8 || !emp.email.trim()}
-                        title={!emp.email.trim() ? 'Enter an email address first' : empPw.length < 8 ? 'Password must be at least 8 characters' : undefined}
-                        onClick={async () => { setEmpLoginBusy(true); setEmpLoginMsg(null);
-                          try { const r = await store.createEmployeeLogin(emp.id, empPw); setEmpLoginMsg(describeLogin(r, emp.email)); setEmpPw(''); }
-                          catch (err) { setEmpLoginMsg(err instanceof Error ? err.message : String(err)); }
-                          finally { setEmpLoginBusy(false); } }}>{empLoginBusy ? 'Creating login…' : 'Create Login'}</button>}
-                      {login && <button type="button" className="btn sm" disabled={empLoginBusy}
-                        onClick={async () => { setEmpLoginBusy(true); setEmpLoginMsg(null);
-                          try { await store.sendPasswordReset(login.id); setEmpLoginMsg(`Password reset link emailed to ${login.email}.`); }
-                          catch (err) { setEmpLoginMsg(err instanceof Error ? err.message : String(err)); }
-                          finally { setEmpLoginBusy(false); } }}>Send password reset</button>}
-                    </div>
-                    {empLoginMsg && <div className="alert" style={{ marginTop: 8, marginBottom: 0 }}>{empLoginMsg}</div>}
-                    <p className="hint" style={{ marginTop: 6 }}>Employees see only their own assets. Wider access is granted on <Link to="/users">Users &amp; Permissions</Link>.</p>
-                  </>)}
-              </div>);
-          })()}
-          {db.employees.some(e => e.id === emp.id) && store.employeeDeleteBlockers(emp.id).length > 0 && <div className="alert" style={{ gridColumn: '1 / -1', marginBottom: 0 }}>This employee has asset history ({store.employeeDeleteBlockers(emp.id).join('; ')}). Records are never deleted — untick <b>Active</b> to retire the employee; their history stays on every asset.</div>}
-        </div>
+          {/* Email and password sit together: the email is the login name and the password is set beside it. */}
+          <Input label="Email Address" type="email" value={emp.email} onChange={e => setEmp({ ...emp, email: e.target.value })} hint={canLogin && live ? 'The employee signs in with this address.' : undefined} />
+          {canLogin && <PasswordInput label={login ? 'Password' : 'Password (for the app login)'} minLength={8} autoComplete="new-password"
+            disabled={!live || !saved || !!login} placeholder={login ? '••••••••' : 'At least 8 characters'} value={login ? '' : empPw} onChange={e => setEmpPw(e.target.value)} hint={pwHint} />}
+          <label className="checkbox field"><input type="checkbox" checked={emp.active} onChange={e => setEmp({ ...emp, active: e.target.checked })} /> Active (inactive employees cannot be assigned assets)</label>
+          {canLogin && live && saved && (
+            <div className="field" style={{ gridColumn: '1 / -1' }}>
+              <label>App Login{login && <> · <span className="mono small">{login.email}</span> <Status value="Active" /></>}</label>
+              <div className="btn-row" style={{ marginTop: 4 }}>
+                {!login && <button type="button" className="btn sm primary" disabled={empLoginBusy || empPw.length < 8 || !emp.email.trim()}
+                  title={!emp.email.trim() ? 'Enter an email address first' : empPw.length < 8 ? 'Password must be at least 8 characters' : undefined}
+                  onClick={async () => { setEmpLoginBusy(true); setEmpLoginMsg(null);
+                    try { const r = await store.createEmployeeLogin(emp.id, empPw); setEmpLoginMsg(describeLogin(r, emp.email)); setEmpPw(''); }
+                    catch (err) { setEmpLoginMsg(err instanceof Error ? err.message : String(err)); }
+                    finally { setEmpLoginBusy(false); } }}>{empLoginBusy ? 'Creating login…' : 'Create Login'}</button>}
+                {login && <button type="button" className="btn sm" disabled={empLoginBusy}
+                  onClick={async () => { setEmpLoginBusy(true); setEmpLoginMsg(null);
+                    try { await store.sendPasswordReset(login.id); setEmpLoginMsg(`Password reset link emailed to ${login.email}.`); }
+                    catch (err) { setEmpLoginMsg(err instanceof Error ? err.message : String(err)); }
+                    finally { setEmpLoginBusy(false); } }}>Send password reset</button>}
+              </div>
+              {empLoginMsg && <div className="alert" style={{ marginTop: 8, marginBottom: 0 }}>{empLoginMsg}</div>}
+              <p className="hint" style={{ marginTop: 6 }}>Employees see only their own assets. Wider access is granted on <Link to="/users">Users &amp; Permissions</Link>.</p>
+            </div>
+          )}
+          {saved && store.employeeDeleteBlockers(emp.id).length > 0 && <div className="alert" style={{ gridColumn: '1 / -1', marginBottom: 0 }}>This employee has asset history ({store.employeeDeleteBlockers(emp.id).join('; ')}). Records are never deleted — untick <b>Active</b> to retire the employee; their history stays on every asset.</div>}
+        </div>); })()}
       </Modal>}
       {cat && <Modal title={cat.name || 'New Category'} onClose={() => setCat(null)} footer={<>
           {db.categories.some(x => x.id === cat.id) && (() => { const b = store.categoryDeleteBlockers(cat.id); return <button className="btn danger" style={{ marginRight: 'auto' }} disabled={b.length > 0} title={b.length ? `Cannot delete: ${b.join('; ')}` : 'Delete'} onClick={async () => { const reason = await askReason({ title: `Delete category ${cat.name}`, message: 'This cannot be undone. The deletion and its reason are recorded in the audit log.' }); if (reason && run(() => store.deleteCategory(cat.id, reason), 'Category deleted.') !== undefined) setCat(null); }}>{b.length ? `Delete (in use: ${b.join('; ')})` : 'Delete Category'}</button>; })()}

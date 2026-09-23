@@ -507,7 +507,7 @@ export class Store {
     this.snapshotBefore();
     this.require('handover.create');
     this.requireReason(input.reason);
-    if (!input.items.length) throw new BusinessRuleError('Add at least one asset to the handover.');
+    if (!input.items.length) throw new BusinessRuleError('Add at least one asset to the assignment.');
     const emp = this.employee(input.employeeId);
     if (!emp || !emp.active) throw new BusinessRuleError('Select an active employee.');
     for (const it of input.items) {
@@ -516,7 +516,7 @@ export class Store {
       if (a.status !== 'Available') throw new BusinessRuleError(`Rule 4: ${a.id} is ${a.status}. Only Available assets can be issued.`);
       if (a.custodianEmployeeId) throw new BusinessRuleError(`Rule 3: ${a.id} already has an active custodian.`);
       const pendingElsewhere = this.db.handovers.some(h => ['Awaiting Approval', 'Awaiting Acknowledgement'].includes(h.status) && h.items.some(x => x.assetId === it.assetId));   // legacy rows only
-      if (pendingElsewhere) throw new BusinessRuleError(`Rule 3: ${a.id} is already on a pending handover.`);
+      if (pendingElsewhere) throw new BusinessRuleError(`Rule 3: ${a.id} is already on a pending assignment.`);
     }
     const id = this.nextRef('HO', this.db.handovers);
     // No approval and no acknowledgement step: submitting hands the assets over there and then.
@@ -741,7 +741,7 @@ export class Store {
       this.setAsset(a.id, { status: 'Available', custodianEmployeeId: undefined, departmentId: t.toDepartmentId, locationId: t.toLocationId, condition: t.conditionAtTransfer });
     }
     this.db.transfers = this.db.transfers.map(x => x.id === id ? { ...x, status: 'Completed', completedAt: nowIso(), newHandoverId } : x);
-    this.audit('TRANSFER_COMPLETED', 'Transfer', id, reason, newHandoverId ? `New handover ${newHandoverId}` : 'Moved to pool');
+    this.audit('TRANSFER_COMPLETED', 'Transfer', id, reason, newHandoverId ? `New assignment ${newHandoverId}` : 'Moved to pool');
     this.commit();
     return newHandoverId;
   }
@@ -1013,7 +1013,7 @@ export class Store {
     const tx = this.db.transactions.filter(t => t.fromEmployeeId === id || t.toEmployeeId === id).length;
     if (tx) b.push(`${tx} transaction(s) in asset history`);
     const ho = this.db.handovers.filter(h => h.employeeId === id).length;
-    if (ho) b.push(`${ho} handover record(s)`);
+    if (ho) b.push(`${ho} assignment record(s)`);
     const inc = this.db.incidents.filter(i => i.reportedByEmployeeId === id).length;
     if (inc) b.push(`${inc} incident report(s)`);
     const u = this.db.users.find(x => x.employeeId === id);
