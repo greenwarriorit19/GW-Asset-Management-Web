@@ -141,8 +141,6 @@ describe('records created by the app fit the database schema', () => {
     loadSampleData(s);                           // employees, assets, assignments, return, repair, incident, retirement
     const db = s.getSnapshot();
     // …and take the remaining steps so every table is populated
-    const ret = db.returns.find(r => !r.inspected)!;
-    s.inspectReturn(ret.id, { inspectionCondition: 'Good', inspectionOutcome: 'Acceptable', inspectionNotes: 'ok', reason: 'Inspection done' });
     const rp = s.getSnapshot().repairs[0];
     s.approveRepair(rp.id, true, 'Approved');
     s.completeRepair(rp.id, { actualCost: 1800, completionDate: '2026-09-22', workDone: 'Replaced screen', inspectionNotes: 'ok', outcome: 'Available', conditionAfter: 'Good', reason: 'Repair completed' });

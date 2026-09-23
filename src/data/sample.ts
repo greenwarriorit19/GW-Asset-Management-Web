@@ -43,7 +43,7 @@ export function loadSampleData(store: Store): string {
   store.createHandover({ employeeId: deepak, issuedByUserId: issuer, items: [item(l1, 'Charger - 65W, Laptop bag, Wireless mouse')], reason });
   store.createHandover({ employeeId: meena, issuedByUserId: issuer, items: [item(m2, 'Charger - 25W, USB-C cable'), item(c1, 'Dock, Clip, Charger')], reason });
 
-  // 4. A return pending inspection
+  // 4. A completed return
   store.createHandover({ employeeId: kavitha, issuedByUserId: issuer, items: [item(l2, 'Charger - 65W, Bag')], reason });
   store.createReturn({ assetId: l2, conditionReported: 'Fair', accessoriesReturned: 'Charger - 65W', employeeRemarks: 'Bag misplaced', employeeSignature: 'Sample — Kavitha P', reason: 'Replaced with new laptop' });
 
@@ -54,5 +54,5 @@ export function loadSampleData(store: Store): string {
   // 6. A retirement recommendation
   store.startRetirement({ assetId: t1, retirementReason: 'Screen cracked beyond economic repair', technicalRecommendation: 'Repair quote exceeds 60% of replacement cost', reason: 'End of life' });
 
-  return `Sample data loaded: ${empIds.length} employees, ${ids.length} assets (${m1} … ${ids[ids.length - 1]}), 4 assignments, 1 return pending inspection, 1 repair, 1 incident, 1 retirement.`;
+  return `Sample data loaded: ${empIds.length} employees, ${ids.length} assets (${m1} … ${ids[ids.length - 1]}), 4 assignments, 1 completed return, 1 repair, 1 incident, 1 retirement.`;
 }

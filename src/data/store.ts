@@ -645,16 +645,25 @@ export class Store {
     const r: AssetReturn = {
       id, date: today(), assetId: a.id, employeeId: a.custodianEmployeeId, handoverId: handover?.id, receivedByUserId: this.currentUser.id,
       conditionReported: input.conditionReported, accessoriesReturned: input.accessoriesReturned, employeeRemarks: input.employeeRemarks,
-      inspected: false, employeeSignature: input.employeeSignature, receiverSignature: this.currentUser.name, status: 'Pending Inspection',
+      inspected: true, inspectionDate: today(), inspectionCondition: input.conditionReported,
+      employeeSignature: input.employeeSignature, receiverSignature: this.currentUser.name, status: 'Completed',
       createdByUserId: this.currentUser.id, createdAt: nowIso(),
     };
+    // A return completes on submission: custody is released and the asset is back in stock in the
+    // condition it came back in. The one exception is damage, which cannot go quietly on the shelf (Rule 9).
+    const damaged = input.conditionReported === 'Damaged';
+    r.inspectionOutcome = damaged ? 'Damaged' : 'Acceptable';
+    const after: AssetStatus = damaged ? 'Damaged' : 'Available';
     this.db.returns = [...this.db.returns, r];
-    this.addTransaction({ type: 'RETURN', assetId: a.id, reference: id, fromEmployeeId: a.custodianEmployeeId, statusBefore: a.status, statusAfter: 'Under Inspection', conditionBefore: a.condition, conditionAfter: input.conditionReported, reason: input.reason });
-    // Rule 8 — returned assets go to Under Inspection, never straight to Available. Custody is released.
-    this.setAsset(a.id, { status: 'Under Inspection', custodianEmployeeId: undefined, condition: input.conditionReported });
+    this.addTransaction({ type: 'RETURN', assetId: a.id, reference: id, fromEmployeeId: a.custodianEmployeeId, statusBefore: a.status, statusAfter: after, conditionBefore: a.condition, conditionAfter: input.conditionReported, reason: input.reason });
+    this.setAsset(a.id, { status: after, custodianEmployeeId: undefined, condition: input.conditionReported });
     if (handover) {
       const stillHeld = handover.items.some(i => i.assetId !== a.id && this.asset(i.assetId)?.custodianEmployeeId === handover.employeeId);
       if (!stillHeld) this.db.handovers = this.db.handovers.map(h => h.id === handover.id ? { ...h, status: 'Closed' } : h);
+    }
+    if (damaged) {
+      this.openIncident({ assetId: a.id, type: 'Damaged', incidentDate: today(), reportedByEmployeeId: r.employeeId, location: this.locName(a.locationId),
+        description: `Damage reported on return ${id}: ${input.employeeRemarks || 'no remarks'}`, reason: 'Auto-created from a damaged return' }, false);
     }
     this.audit('RETURN_CREATED', 'Return', id, input.reason);
     this.commit();

@@ -149,12 +149,14 @@ export function ReturnDoc({ ret }: { ret: AssetReturn }) {
       ]} />
       <h4>Assets Returned</h4>
       <AssetItemsTable rows={[{ asset: a, assetId: a.id, condition: ret.conditionReported, quantity: 1, accessories: ret.accessoriesReturned, remarks: ret.employeeRemarks }]} />
-      <h4>Inspection Record</h4>
-      <Fields rows={[
-        ['Inspection Date', ret.inspectionDate ? fmtDate(ret.inspectionDate) : ''], ['Inspected By', ret.inspectedByUserId ? personWithTitle(store, ret.inspectedByUserId) : ''],
-        ['Condition on Inspection', ret.inspectionCondition], ['Inspection Outcome', ret.inspectionOutcome],
-      ]} />
-      <Fields cols={1} rows={[['Inspection Notes', ret.inspectionNotes]]} />
+      {ret.inspectedByUserId && <>
+        <h4>Inspection Record</h4>
+        <Fields rows={[
+          ['Inspection Date', ret.inspectionDate ? fmtDate(ret.inspectionDate) : ''], ['Inspected By', ret.inspectedByUserId ? personWithTitle(store, ret.inspectedByUserId) : ''],
+          ['Condition on Inspection', ret.inspectionCondition], ['Inspection Outcome', ret.inspectionOutcome],
+        ]} />
+        <Fields cols={1} rows={[['Inspection Notes', ret.inspectionNotes]]} />
+      </>}
     </A4Document>
   );
 }

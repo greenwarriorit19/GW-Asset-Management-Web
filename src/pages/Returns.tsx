@@ -53,7 +53,7 @@ export function Returns() {
       {store.can('return.create') ? (
         <form onSubmit={submit}>
           <Section title="Record Asset Return">
-            <div className="rule-note">Rule 8: a returned asset moves to <b>Under Inspection</b>. It becomes Available only after inspection; faulty items go to Under Repair, damaged items open an incident report automatically.</div>
+            <div className="rule-note">Recording a return completes it: custody is released and the asset goes back to <b>Available</b> in the condition reported. A return marked <b>Damaged</b> goes to <b>Damaged</b> instead and opens an incident report automatically (Rule 9).</div>
             <div className="form-grid cols-4">
               <Select label="Asset (scan QR or select)" required span={2} value={assetId} onChange={e => { setAssetId(e.target.value); setAcc(store.asset(e.target.value)?.accessories ?? ''); }} placeholder="Select assigned asset…" hint="The asset coming back. Scan its QR code or pick from the assets currently assigned out." options={assignable.map(a => ({ value: a.id, label: `${a.id} — ${a.name} · ${store.employeeName(a.custodianEmployeeId)}` }))} />
               <ReadOnly label="Returning Employee" value={emp ? `${emp.name} (${emp.employeeCode})` : ''} hint="Filled from the asset's current custodian." />
@@ -76,14 +76,14 @@ export function Returns() {
       {open && (
         <Modal title={`Return ${open.id}`} onClose={() => setOpen(null)} wide>
           {!open.inspected && store.can('return.inspect') && (
-            <Section title="Inspection (required before the asset can become Available)">
+            <Section title="Complete this return (recorded before returns completed on submission)">
               <div className="form-grid">
                 <Select label="Condition on Inspection" required value={iCond} onChange={e => setICond(e.target.value as Condition)} hint="The condition you actually find on checking — this is what the asset record keeps." options={CONDITIONS.map(c => ({ value: c, label: c }))} />
                 <Select label="Outcome" required value={iOut ?? ''} onChange={e => setIOut(e.target.value as AssetReturn['inspectionOutcome'])} hint="Decides where the asset goes next: back to stock, to a repair, or to an incident report." options={[{ value: 'Acceptable', label: 'Acceptable → Available' }, { value: 'Faulty', label: 'Faulty → Under Repair' }, { value: 'Damaged', label: 'Damaged → incident report' }]} />
                 <Input label="Reason" required value={iReason} onChange={e => setIReason(e.target.value)} placeholder="e.g. Routine check on return" hint="Short reason recorded on the asset's history." />
                 <TextArea label="Inspection Notes" span="full" required value={iNotes} onChange={e => setINotes(e.target.value)} placeholder="What you checked and what you found" hint="Printed on the return form as the inspection record." />
               </div>
-              <div className="btn-row end" style={{ marginTop: 10 }}><button className="btn primary" onClick={() => { const ok = runOk(() => store.inspectReturn(open.id, { inspectionCondition: iCond, inspectionOutcome: iOut, inspectionNotes: iNotes, reason: iReason }), 'Inspection recorded.'); if (ok) setOpen(db.returns.find(r => r.id === open.id) ?? null); }}>Complete Inspection</button></div>
+              <div className="btn-row end" style={{ marginTop: 10 }}><button className="btn primary" onClick={() => { const ok = runOk(() => store.inspectReturn(open.id, { inspectionCondition: iCond, inspectionOutcome: iOut, inspectionNotes: iNotes, reason: iReason }), 'Inspection recorded.'); if (ok) setOpen(db.returns.find(r => r.id === open.id) ?? null); }}>Complete Return</button></div>
             </Section>
           )}
           <ReturnDoc ret={db.returns.find(r => r.id === open.id) ?? open} />

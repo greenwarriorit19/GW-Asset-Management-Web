@@ -56,7 +56,7 @@ numbering and document templates are independent of storage.
 5. Every issue / return / transfer / repair / incident / verification / retirement / disposal writes a separate transaction
 6. Transactions and audit entries are never edited or deleted; an asset can only be deleted while it has no history (a mis-registration), and its registration entry goes with it
 7. Assigning an asset needs no approval or signature: on submit the asset becomes *Assigned* to the employee
-8. Returns go to *Under Inspection*; inspection decides Available / Under Repair / Damaged (auto-opens an incident)
+8. A return completes on submission: custody is released and the asset goes back to *Available* in the condition reported; a return marked *Damaged* goes to *Damaged* and auto-opens an incident
 9. Lost/damaged requires an incident report, investigation and approval
 10. Disposal requires management authorization and an uploaded supporting document
 11. Every action records user, role, date-time and reason

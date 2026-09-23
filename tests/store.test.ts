@@ -168,45 +168,33 @@ describe('Rules 3, 4, 7 — handover', () => {
   });
 });
 
-describe('Rule 8 — return and inspection', () => {
-  it('return goes to Under Inspection, releases custody and closes the handover', () => {
+describe('Rule 8 — return', () => {
+  it('a return completes on submission: custody released, asset Available, handover closed', () => {
     const a = newAsset(); const h = issue(a.id);
     const r = s.createReturn({ assetId: a.id, conditionReported: 'Good', accessoriesReturned: 'Charger', employeeSignature: 'V. Lakshmi', reason: 'Project ended' });
-    expect(r.handoverId).toBe(h);
-    expect(s.asset(a.id)).toMatchObject({ status: 'Under Inspection', custodianEmployeeId: undefined });
+    expect(r).toMatchObject({ handoverId: h, status: 'Completed', inspected: true, inspectionOutcome: 'Acceptable' });
+    expect(s.asset(a.id)).toMatchObject({ status: 'Available', custodianEmployeeId: undefined, condition: 'Good' });
     expect(s.getSnapshot().handovers.find(x => x.id === h)!.status).toBe('Closed');
     expect(() => s.createReturn({ assetId: a.id, conditionReported: 'Good', accessoriesReturned: '', employeeSignature: 'x', reason: 'again' })).toThrow(/Assigned/);
   });
-  it('inspection outcomes: Acceptable → Available, Faulty → Under Repair, Damaged → Damaged + auto incident', () => {
-    const outcomes: Array<['Acceptable' | 'Faulty' | 'Damaged', string]> = [['Acceptable', 'Available'], ['Faulty', 'Under Repair'], ['Damaged', 'Damaged']];
-    for (const [outcome, status] of outcomes) {
-      const a = newAsset(); issue(a.id);
-      const r = s.createReturn({ assetId: a.id, conditionReported: 'Good', accessoriesReturned: '', employeeSignature: 'V. Lakshmi', reason: 'Returned' });
-      s.inspectReturn(r.id, { inspectionCondition: outcome === 'Acceptable' ? 'Good' : 'Damaged', inspectionOutcome: outcome, inspectionNotes: 'checked', reason: 'Inspection done' });
-      expect(s.asset(a.id)!.status).toBe(status);
-      if (outcome === 'Damaged') expect(s.getSnapshot().incidents.find(i => i.assetId === a.id)).toMatchObject({ type: 'Damaged', reportedByEmployeeId: 'E-006', status: 'Reported' });
-    }
-  });
-  it('inspection never writes a department or location the database does not have', () => {
+  it('a damaged return goes to Damaged and opens an incident (Rule 9)', () => {
     const a = newAsset(); issue(a.id);
-    s.createReturn({ assetId: a.id, conditionReported: 'Fair', accessoriesReturned: '', employeeSignature: 'x', reason: 'Returned for check' });
-    const r = s.getSnapshot().returns.find(x => x.assetId === a.id)!;
+    s.createReturn({ assetId: a.id, conditionReported: 'Damaged', accessoriesReturned: '', employeeSignature: 'x', employeeRemarks: 'Screen cracked', reason: 'Dropped in the field' });
+    expect(s.asset(a.id)).toMatchObject({ status: 'Damaged', condition: 'Damaged', custodianEmployeeId: undefined });
+    expect(s.getSnapshot().incidents.find(i => i.assetId === a.id)).toMatchObject({ type: 'Damaged', status: 'Reported' });
+  });
+  it('a return keeps the department and location the asset is recorded at', () => {
+    const a = newAsset(); issue(a.id);
     const before = s.asset(a.id)!;
-    s.inspectReturn(r.id, { inspectionCondition: 'Good', inspectionOutcome: 'Acceptable', inspectionNotes: 'ok', reason: 'Checked' });
+    s.createReturn({ assetId: a.id, conditionReported: 'Fair', accessoriesReturned: '', employeeSignature: 'x', reason: 'Returned for check' });
     const after = s.asset(a.id)!;
-    expect(after.departmentId).toBe(before.departmentId);                       // keeps what it had, no seeded id
+    expect(after.departmentId).toBe(before.departmentId);
     expect(s.department(after.departmentId)).toBeTruthy();
     expect(s.location(after.locationId)).toBeTruthy();
   });
   it('a department or location that does not exist is refused', () => {
     expect(() => newAsset({ departmentId: 'D-GONE' })).toThrow(/department that exists/);
     expect(() => newAsset({ locationId: 'L-GONE' })).toThrow(/location that exists/);
-  });
-  it('an inspected return cannot be inspected twice', () => {
-    const a = newAsset(); issue(a.id);
-    const r = s.createReturn({ assetId: a.id, conditionReported: 'Good', accessoriesReturned: '', employeeSignature: 'x', reason: 'Returned' });
-    s.inspectReturn(r.id, { inspectionCondition: 'Good', inspectionOutcome: 'Acceptable', inspectionNotes: 'ok', reason: 'Inspection done' });
-    expect(() => s.inspectReturn(r.id, { inspectionCondition: 'Good', inspectionOutcome: 'Acceptable', inspectionNotes: 'ok', reason: 'again' })).toThrow(/already/);
   });
 });
 
@@ -601,7 +589,6 @@ describe('Sample data', () => {
     expect(db.employees.length).toBe(4); expect(db.assets.length).toBe(10);
     expect(db.assets.filter(a => a.status === 'Assigned').length).toBe(5);
     expect(db.assets.filter(a => a.status === 'Reserved').length).toBe(0);
-    expect(db.assets.filter(a => a.status === 'Under Inspection').length).toBe(1);
     expect(db.assets.filter(a => a.status === 'Under Repair').length).toBe(1);
     expect(db.assets.filter(a => a.status === 'Damaged').length).toBe(1);
     expect(db.disposals.length).toBe(1);
