@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { SearchSelect } from './SearchSelect';
 import { useStore } from '../data/context';
+import { ProblemCard } from './ProblemCard';
 import type { Permission } from '../data/store';
 
 interface NavItem { to: string; label: string; perm?: Permission | Permission[]; badge?: number }
@@ -90,6 +91,7 @@ export function Layout() {
         </div>
       )}
       {notice && <div className="toast" role="status" key={notice.at}>{notice.message}</div>}
+      <ProblemCard />
       <main className="main"><Outlet /></main>
     </div>
   );

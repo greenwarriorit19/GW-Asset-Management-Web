@@ -618,3 +618,15 @@ table.data.assign tr.assign-add td:first-child { background: transparent; border
 /* Delete confirmation: the record about to go, shown as a compact preview. */
 .modal table.data.preview td { padding: 5px 8px; font-size: 12.5px; }
 .modal table.data.preview td.k { width: 42%; color: var(--grey-700); background: rgba(112,121,140,0.08); }
+
+/* "Needs attention" card — one place for a refused action or an incomplete field. */
+.problem-card { position: fixed; top: calc(var(--topbar-h) + 14px); right: 20px; z-index: 210; width: min(420px, calc(100vw - 32px));
+  background: rgba(255,255,255,0.97); backdrop-filter: blur(12px); border: 1px solid #D19AA3; border-left: 4px solid var(--danger);
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px 14px; animation: toast-in 0.18s ease-out; }
+.problem-card .pc-head { display: flex; align-items: center; gap: 8px; color: var(--danger); font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.06em; }
+.problem-card .pc-icon { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: var(--danger); color: #fff; font-weight: 700; font-size: 12px; }
+.problem-card .pc-close { margin-left: auto; background: none; border: none; font-size: 18px; line-height: 1; color: var(--grey-700); cursor: pointer; padding: 0 2px; }
+.problem-card .pc-msg { margin: 8px 0 0; font-size: 13px; color: var(--charcoal); }
+.problem-card .pc-fields { margin: 6px 0 0; padding-left: 18px; font-size: 13px; font-weight: 600; color: var(--charcoal); }
+.problem-card .btn-row { margin-top: 10px; }
+@media (max-width: 820px) { .problem-card { left: 16px; right: 16px; width: auto; } }

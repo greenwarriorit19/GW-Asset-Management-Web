@@ -38,6 +38,7 @@ export interface SessionState {
   error?: string;               // load / login error
   sync: { state: 'idle' | 'saving' | 'saved' | 'error'; message?: string; at?: string };
   notice?: { message: string; at: number };   // "Saved" confirmation, shown until it is cleared
+  problem?: { message: string; fields?: string[]; at: number };   // something needs attention, shown as a card
 }
 
 /** Department Head, Employee and Auditor were retired: drop them wherever nobody still holds one. */
@@ -110,8 +111,11 @@ export class Store {
   }
 
   /** Confirms a completed action to the user. Lives on the session so it survives the page moving on. */
-  notify(message: string) { this.setSession({ notice: { message, at: Date.now() } }); }
+  notify(message: string) { this.setSession({ notice: { message, at: Date.now() }, problem: undefined }); }
   clearNotice() { if (this.session.notice) this.setSession({ notice: undefined }); }
+  /** Raises a card explaining what needs attention — a refused action, or fields left incomplete. */
+  problem(message: string, fields?: string[]) { this.setSession({ problem: { message, fields, at: Date.now() }, notice: undefined }); }
+  clearProblem() { if (this.session.problem) this.setSession({ problem: undefined }); }
 
   async login(email: string, password: string) {
     this.setSession({ error: undefined });

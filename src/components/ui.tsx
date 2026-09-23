@@ -210,18 +210,18 @@ export const fmtSize = (n: number) => n > 1_000_000 ? (n / 1_000_000).toFixed(1)
 /** Runs a store action, capturing BusinessRuleError messages for display. */
 export function useAction() {
   const { store } = useStore();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);   // kept for callers that read it; the card is what the user sees
   // The success toast is held on the session, so it still appears when the action moves the page on.
   const run = <T,>(fn: () => T, successMsg?: string): T | undefined => {
     try { setError(null); const r = fn(); store.notify(successMsg ?? 'Saved.'); return r; }
-    catch (e) { store.clearNotice(); setError(e instanceof Error ? e.message : String(e)); return undefined; }
+    catch (e) { const m = e instanceof Error ? e.message : String(e); setError(m); store.problem(m); return undefined; }
   };
   /** True when the action completed. Use for store calls that return nothing — `run(...) !== undefined`
    *  is always false for those, which used to leave dialogs open after a successful save. */
   const runOk = (fn: () => unknown, successMsg?: string): boolean => {
     try { setError(null); fn(); store.notify(successMsg ?? 'Saved.'); return true; }
-    catch (e) { store.clearNotice(); setError(e instanceof Error ? e.message : String(e)); return false; }
+    catch (e) { const m = e instanceof Error ? e.message : String(e); setError(m); store.problem(m); return false; }
   };
-  const Messages = () => <>{error && <Alert kind="error">{error}</Alert>}</>;
+  const Messages = () => null;                                   // problems are shown as a card by the shell
   return { run, runOk, error, Messages, clear: () => { setError(null); store.clearNotice(); } };
 }
