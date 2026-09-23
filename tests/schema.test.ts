@@ -46,7 +46,7 @@ describe('supabase/schema.sql', () => {
   });
 
   it('enforces unique serial / IMEI (Rule 2), Asset ID format (Rule 1) and append-only history (Rule 6)', async () => {
-    await db.exec(`insert into assets (id, category_id, name, serial_number, imei, registered_by, registered_at) values ('GW-AST-MOB-0001', 'C-MOB', 'Phone', 'SN-1', '111', 'U-SA', '2026-09-22T00:00:00Z')`);
+    await db.exec(`insert into assets (id, category_id, name, serial_number, imei, mdm_registered, registered_by, registered_at) values ('GW-AST-MOB-0001', 'C-MOB', 'Phone', 'SN-1', '111', true, 'U-SA', '2026-09-22T00:00:00Z')`);
     await expect(db.exec(`insert into assets (id, category_id, name, serial_number, registered_at) values ('GW-AST-MOB-0002', 'C-MOB', 'Phone', 'sn-1', 'x')`)).rejects.toThrow(/assets_serial_uq/);
     await expect(db.exec(`insert into assets (id, category_id, name, serial_number, registered_at) values ('BAD-ID', 'C-MOB', 'Phone', 'SN-9', 'x')`)).rejects.toThrow(/check/);
     await db.exec(`insert into asset_transactions (id, type, asset_id, date, status_before, status_after, performed_by_user_id, performed_by_name, reason) values ('T-000001', 'REGISTRATION', 'GW-AST-MOB-0001', '2026-09-22T00:00:00Z', 'Available', 'Available', 'U-SA', 'Admin', 'New asset')`);

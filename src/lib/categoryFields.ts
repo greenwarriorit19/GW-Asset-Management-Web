@@ -6,12 +6,15 @@ export interface IdentifierNeeds {
   serial: Need; serialLabel: string; serialHint?: string;
   imei: Need; imeiLabel: string;
   sim: Need; simLabel: string; simHint?: string;
+  /** Whether the asset can be enrolled in Mobile Device Management. */
+  mdm: Need;
 }
 
 const DEFAULTS: IdentifierNeeds = {
   serial: 'required', serialLabel: 'Serial Number', serialHint: 'Checked for duplicates',
   imei: 'hidden', imeiLabel: 'IMEI Number',
   sim: 'hidden', simLabel: 'SIM Number',
+  mdm: 'hidden',
 };
 
 /**
@@ -32,11 +35,11 @@ export function identifierNeeds(cat?: Pick<Category, 'code' | 'name'>): Identifi
   };
   // Phones always carry an IMEI, and may be registered with a SIM already fitted.
   if (['MOB', 'PHN'].includes(code) || word('mobile', 'phone', 'handset')) return {
-    ...DEFAULTS, imei: 'required', sim: 'optional', simHint: 'Only if a SIM is issued with the handset',
+    ...DEFAULTS, imei: 'required', sim: 'optional', simHint: 'Only if a SIM is issued with the handset', mdm: 'optional',
   };
   // Anything else that can take a mobile connection: asked for, never demanded.
   if (['TAB', 'GPS', 'CAM', 'RTR', 'DNG'].includes(code) || word('tablet', 'gps', 'tracker', 'camera', 'router', 'dongle', 'modem', 'watch'))
-    return { ...DEFAULTS, imei: 'optional', sim: 'optional', simHint: 'Only if a SIM is fitted' };
+    return { ...DEFAULTS, imei: 'optional', sim: 'optional', simHint: 'Only if a SIM is fitted', mdm: 'optional' };
 
   return DEFAULTS;   // laptops, furniture, tools … serial number only
 }

@@ -40,8 +40,11 @@ export function AssetInventory() {
       closed: n('Retired', 'Disposed'),
       active: rows.filter(a => !['Retired', 'Disposed', 'Lost'].includes(a.status)).length,
       value: rows.reduce((t, a) => t + (a.purchaseCost || 0), 0),
+      mdmCapable: rows.filter(a => needsField(identifierNeeds(store.category(a.categoryId)).mdm)).length,
+      mdmYes: rows.filter(a => a.mdmRegistered).length,
+      mdmNo: rows.filter(a => needsField(identifierNeeds(store.category(a.categoryId)).mdm) && !a.mdmRegistered).length,
     };
-  }, [rows]);
+  }, [rows, store]);
   const summaryTitle = `${cat ? store.catName(cat) : 'Asset'} Inventory Summary`;
 
   const columns: Column<Asset>[] = [
@@ -82,6 +85,10 @@ export function AssetInventory() {
           <div className="metric"><div className="label">Under Repair</div><div className="value">{sum.repair}</div><div className="sub">With a vendor or workshop</div></div>
           <div className="metric alert"><div className="label">Damaged / Lost</div><div className="value">{sum.trouble}</div><div className="sub">Reported, under investigation</div></div>
           <div className="metric"><div className="label">Retired / Disposed</div><div className="value">{sum.closed}</div><div className="sub">Out of service</div></div>
+          {sum.mdmCapable > 0 && <>
+            <div className="metric"><div className="label">MDM Registered</div><div className="value">{sum.mdmYes}</div><div className="sub">Enrolled in device management</div></div>
+            <div className="metric warn"><div className="label">MDM Not Registered</div><div className="value">{sum.mdmNo}</div><div className="sub">Of {sum.mdmCapable} device(s) that can be enrolled</div></div>
+          </>}
         </div>
       </Section>
       <Section title="Asset Register" compact>
@@ -145,6 +152,7 @@ export function AssetDetail() {
                 <dt>Serial Number</dt><dd className="mono">{a.serialNumber}</dd>
                 {a.imei && <><dt>IMEI</dt><dd className="mono">{a.imei}</dd></>}
                 {a.sim && <><dt>SIM</dt><dd className="mono">{a.sim}</dd></>}
+                {a.mdmRegistered !== undefined && <><dt>MDM</dt><dd><Status value={a.mdmRegistered ? 'Registered' : 'Not Registered'} /></dd></>}
                 <dt>Barcode / QR</dt><dd className="mono">{a.barcode}</dd>
                 <dt>Ownership</dt><dd>{a.ownershipType}</dd>
                 <dt>Specification</dt><dd>{a.specification || '—'}</dd>
@@ -240,7 +248,7 @@ function AssetForm({ asset, onSaved, onClose }: { asset?: Asset; onSaved: (id: s
   const { run, Messages } = useAction();
   const [reason, setReason] = useState(asset ? '' : 'New asset received against invoice');
   const [f, setF] = useState<FormState>(() => asset ? { ...asset, purchaseCost: String(asset.purchaseCost) } : {
-    categoryId: db.categories[0]?.id ?? '', name: '', manufacturer: '', model: '', serialNumber: '', imei: '', sim: '', barcode: '',
+    categoryId: db.categories[0]?.id ?? '', name: '', manufacturer: '', model: '', serialNumber: '', imei: '', sim: '', mdmRegistered: false, barcode: '',
     ownershipType: 'Company Owned', supplierName: '', invoiceNumber: '', poNumber: '', purchaseDate: today(), purchaseCost: '',
     warrantyStart: '', warrantyExpiry: '', funding: '', condition: 'New', departmentId: db.departments[0]?.id ?? '', locationId: db.locations[0]?.id ?? '',
     specification: '', accessories: '', maintenanceNotes: '', remarks: '',
@@ -252,7 +260,7 @@ function AssetForm({ asset, onSaved, onClose }: { asset?: Asset; onSaved: (id: s
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const payload = { ...f, purchaseCost: Number(f.purchaseCost) || 0, imei: needsField(ids.imei) ? f.imei || undefined : undefined, sim: needsField(ids.sim) ? f.sim || undefined : undefined, warrantyStart: f.warrantyStart || undefined, warrantyExpiry: f.warrantyExpiry || undefined };
+    const payload = { ...f, purchaseCost: Number(f.purchaseCost) || 0, imei: needsField(ids.imei) ? f.imei || undefined : undefined, sim: needsField(ids.sim) ? f.sim || undefined : undefined, mdmRegistered: needsField(ids.mdm) ? !!f.mdmRegistered : undefined, warrantyStart: f.warrantyStart || undefined, warrantyExpiry: f.warrantyExpiry || undefined };
     if (asset) {
       const ok = run(() => store.updateAsset(asset.id, payload, reason), 'Asset updated.');
       if (ok !== undefined) onSaved(asset.id);
@@ -276,6 +284,7 @@ function AssetForm({ asset, onSaved, onClose }: { asset?: Asset; onSaved: (id: s
           <Input label={ids.serialLabel} required={ids.serial === 'required'} value={f.serialNumber} onChange={e => set('serialNumber', e.target.value)} hint={ids.serialHint} />
           {needsField(ids.imei) && <Input label={ids.imeiLabel} required={ids.imei === 'required'} value={f.imei ?? ''} onChange={e => set('imei', e.target.value)} inputMode="numeric" hint={ids.imei === 'required' ? 'Checked for duplicates' : 'Optional for this category'} />}
           {needsField(ids.sim) && <Input label={ids.simLabel} required={ids.sim === 'required'} value={f.sim ?? ''} onChange={e => set('sim', e.target.value)} inputMode="numeric" hint={ids.simHint} />}
+          {needsField(ids.mdm) && <label className="checkbox field"><input type="checkbox" checked={!!f.mdmRegistered} onChange={e => set('mdmRegistered', e.target.checked)} /> Registered in MDM (Mobile Device Management)</label>}
           <Input label="Barcode / QR Code" value={f.barcode ?? ''} onChange={e => set('barcode', e.target.value)} hint="Defaults to the Asset ID" />
           <Select label="Ownership Type" required value={f.ownershipType} onChange={e => set('ownershipType', e.target.value as OwnershipType)} options={OWNERSHIP_TYPES.map(o => ({ value: o, label: o }))} />
         </div>

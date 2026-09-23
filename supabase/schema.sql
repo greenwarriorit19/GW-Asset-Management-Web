@@ -75,7 +75,7 @@ create table if not exists assets (
   id text primary key check (id ~ '^GW-AST-[A-Z]{2,4}-[0-9]{4}$'),   -- Rule 1
   category_id text not null references asset_categories(id),
   name text not null, manufacturer text, model text,
-  serial_number text not null, imei text, sim text, barcode text,
+  serial_number text not null, imei text, sim text, mdm_registered boolean, barcode text,
   ownership_type text not null default 'Company Owned',
   supplier_name text, invoice_number text, po_number text, purchase_date text, purchase_cost numeric(12,2) not null default 0,
   warranty_start text, warranty_expiry text, funding text,
@@ -88,6 +88,9 @@ create table if not exists assets (
   updated_at timestamptz not null default now()
 );
 -- Rule 2: unique serial / IMEI / SIM (case-insensitive, blanks ignored)
+-- Added later: safe on an existing database
+alter table assets add column if not exists mdm_registered boolean;
+
 create unique index if not exists assets_serial_uq on assets (upper(serial_number));
 create unique index if not exists assets_imei_uq on assets (upper(imei)) where imei is not null and imei <> '';
 create unique index if not exists assets_sim_uq on assets (upper(sim)) where sim is not null and sim <> '';

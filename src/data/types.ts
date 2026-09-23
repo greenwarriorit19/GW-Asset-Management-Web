@@ -67,6 +67,7 @@ export interface Asset {
   serialNumber: string;
   imei?: string;
   sim?: string;
+  mdmRegistered?: boolean;   // enrolled in Mobile Device Management (phones, tablets and other field devices)
   barcode?: string;
   ownershipType: OwnershipType;
   supplierName: string;

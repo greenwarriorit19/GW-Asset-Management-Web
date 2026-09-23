@@ -7,14 +7,15 @@ export const ASSET_COLUMNS = [
   ['Asset Name', 'REQUIRED'], ['Category', 'REQUIRED — code or name, e.g. MOB or Mobile Phone'], ['Manufacturer', 'REQUIRED'], ['Model', 'REQUIRED'],
   ['Serial Number', 'BY CATEGORY — required for most assets, optional for SIM cards; must be unique'],
   ['IMEI Number', 'BY CATEGORY — required for phones, optional for tablets / GPS / cameras, otherwise leave blank; must be unique'],
-  ['SIM Number', 'BY CATEGORY — required for SIM cards, optional where a SIM is fitted, otherwise leave blank; must be unique'],   ['Ownership Type', `optional — one of: ${OWNERSHIP_TYPES.join(', ')} (default Company Owned)`], ['Invoice Number', 'optional'],
+  ['SIM Number', 'BY CATEGORY — required for SIM cards, optional where a SIM is fitted, otherwise leave blank; must be unique'],
+  ['MDM Registered', 'BY CATEGORY — Yes / No for phones, tablets, GPS and cameras; leave blank otherwise'],   ['Ownership Type', `optional — one of: ${OWNERSHIP_TYPES.join(', ')} (default Company Owned)`], ['Invoice Number', 'optional'],
   ['Purchase Date', 'REQUIRED — date (YYYY-MM-DD or Excel date)'], ['Purchase Cost', 'REQUIRED — number in ₹'], ['Warranty Start Date', 'REQUIRED — date'], ['Warranty Expiry Date', 'REQUIRED — date'],
   ['Specification', 'REQUIRED'], ['Accessories', 'REQUIRED — comma-separated, e.g. Charger - Moto 33W, Back case x2'], ['Maintenance Notes', 'optional'], ['Remarks', 'optional'],
 ] as const;
 
 
 /** Identifier columns whose requirement depends on the asset's category (see categoryFields). */
-const BY_CATEGORY: string[] = ['Serial Number', 'IMEI Number', 'SIM Number'];
+const BY_CATEGORY: string[] = ['Serial Number', 'IMEI Number', 'SIM Number', 'MDM Registered'];
 
 export const EMPLOYEE_COLUMNS = [
   ['Employee ID', 'optional — e.g. GW-EMP-0031; generated when blank'], ['ERP ID', 'optional — reference in the ERP / payroll system'], ['Employee Name', 'required'], ['Designation', 'required'], ['Department', 'required — code or name'],
@@ -22,7 +23,7 @@ export const EMPLOYEE_COLUMNS = [
 ] as const;
 
 export interface AssetRow {
-  name: string; categoryId: string; manufacturer: string; model: string; serialNumber: string; imei?: string; sim?: string; barcode?: string;
+  name: string; categoryId: string; manufacturer: string; model: string; serialNumber: string; imei?: string; sim?: string; mdmRegistered?: boolean; barcode?: string;
   ownershipType: OwnershipType; supplierName: string; invoiceNumber: string; poNumber: string; purchaseDate: string; purchaseCost: number;
   warrantyStart?: string; warrantyExpiry?: string; funding?: string; condition: Condition; departmentId: string; locationId: string;
   specification?: string; accessories?: string; maintenanceNotes?: string; remarks?: string;
@@ -32,6 +33,7 @@ export interface Parsed<T> { line: number; data: T; errors: string[]; raw: Recor
 
 const norm = (s: unknown) => String(s ?? '').trim();
 const key = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
+const yes = (v: string) => /^(y|yes|true|1|registered|enrolled)$/i.test(v.trim());
 
 function findCol(row: Record<string, unknown>, name: string): unknown {
   const want = key(name);
@@ -94,7 +96,9 @@ export function validateAssets(rows: Record<string, unknown>[], db: Database): P
     const data: AssetRow = {
       name: g('Asset Name'), categoryId: cat ?? '', manufacturer: g('Manufacturer'), model: g('Model'), serialNumber: g('Serial Number'),
       imei: need.imei === 'hidden' ? undefined : g('IMEI Number') || undefined,
-      sim: need.sim === 'hidden' ? undefined : g('SIM Number') || undefined, barcode: undefined,
+      sim: need.sim === 'hidden' ? undefined : g('SIM Number') || undefined,
+      mdmRegistered: need.mdm === 'hidden' ? undefined : yes(g('MDM Registered')),
+      barcode: undefined,
       ownershipType: (own ?? 'Company Owned') as OwnershipType, supplierName: '', invoiceNumber: g('Invoice Number'), poNumber: '',
       purchaseDate: pd ?? '', purchaseCost: isNaN(cost) ? 0 : cost, warrantyStart: ws, warrantyExpiry: we,
       funding: undefined, condition: cond, departmentId: dept ?? '', locationId: loc ?? '',
@@ -143,9 +147,9 @@ export async function downloadTemplate(db: Database) {
   const assetHeaders = assetTemplateHeaders();
   const examples = [
     // One example per identifier shape: a phone needs an IMEI, a SIM card needs its number, a laptop needs neither.
-    ['Samsung Galaxy A35', 'MOB', 'Samsung', 'SM-A356E', 'R58X3A1B2C99', '356938035640000', '', 'Company Owned', 'PV/2026/0001', '2026-09-01', 24999, '2026-09-01', '2027-08-31', '8 GB RAM / 128 GB', 'Charger - 25W, USB-C cable, Back case', '', ''],
-    ['Airtel connection', 'SIM', 'Airtel', 'Prepaid', '8991000012345678901', '', '9840000001', 'Company Owned', 'PV/2026/0002', '2026-09-01', 199, '', '', 'Unlimited voice + 2 GB/day', 'SIM tray pin', '', ''],
-    ['Dell Latitude 5540', 'LAP', 'Dell', 'Latitude 5540', 'DL5540X9912', '', '', 'Company Owned', 'PV/2026/0003', '2026-09-01', 68500, '2026-09-01', '2029-08-31', 'i5 / 16 GB / 512 GB SSD', 'Charger - 65W, Laptop bag', '', ''],
+    ['Samsung Galaxy A35', 'MOB', 'Samsung', 'SM-A356E', 'R58X3A1B2C99', '356938035640000', '', 'Yes', 'Company Owned', 'PV/2026/0001', '2026-09-01', 24999, '2026-09-01', '2027-08-31', '8 GB RAM / 128 GB', 'Charger - 25W, USB-C cable, Back case', '', ''],
+    ['Airtel connection', 'SIM', 'Airtel', 'Prepaid', '8991000012345678901', '', '9840000001', '', 'Company Owned', 'PV/2026/0002', '2026-09-01', 199, '', '', 'Unlimited voice + 2 GB/day', 'SIM tray pin', '', ''],
+    ['Dell Latitude 5540', 'LAP', 'Dell', 'Latitude 5540', 'DL5540X9912', '', '', '', 'Company Owned', 'PV/2026/0003', '2026-09-01', 68500, '2026-09-01', '2029-08-31', 'i5 / 16 GB / 512 GB SSD', 'Charger - 65W, Laptop bag', '', ''],
   ];
   const wa = XLSX.utils.aoa_to_sheet([assetHeaders, ...examples]);
   wa['!cols'] = assetHeaders.map(h => ({ wch: Math.max(14, h.length + 2) }));
@@ -159,11 +163,12 @@ export async function downloadTemplate(db: Database) {
     ['GREEN WARRIOR — BULK IMPORT TEMPLATE'], [''],
     ['Fill the Assets and/or Employees sheet, one record per row, keep the header row, then upload the file under Assets → Bulk Import.'],
     ['Delete the three example rows before uploading. Categories, departments and locations must already exist (Master Data). Codes or names are both accepted.'],
-    ['Columns marked * are always required. Serial Number, IMEI Number and SIM Number are marked "(by category)" — what each category needs is listed under VALID CATEGORIES below.'], [''],
+    ['Columns marked * are always required. Serial Number, IMEI Number, SIM Number and MDM Registered are marked "(by category)" — what each category needs is listed under VALID CATEGORIES below.'], [''],
     ['ASSET COLUMNS'], ...ASSET_COLUMNS.map(c => [c[0], c[1]]), [''],
     ['EMPLOYEE COLUMNS'], ...EMPLOYEE_COLUMNS.map(c => [c[0], c[1]]), [''],
-    ['VALID CATEGORIES — and the identifiers each one needs'], ['Code', 'Name', 'Serial Number / IMEI Number / SIM Number'],
-    ...db.categories.map(c => { const n = identifierNeeds(c); return [c.code, c.name, `${n.serial} / ${n.imei === 'hidden' ? 'leave blank' : n.imei} / ${n.sim === 'hidden' ? 'leave blank' : n.sim}`]; }), [''],
+    ['VALID CATEGORIES — and the identifiers each one needs'], ['Code', 'Name', 'Serial Number / IMEI Number / SIM Number / MDM Registered'],
+    ...db.categories.map(c => { const n = identifierNeeds(c); const w = (x: string) => x === 'hidden' ? 'leave blank' : x;
+      return [c.code, c.name, `${w(n.serial)} / ${w(n.imei)} / ${w(n.sim)} / ${n.mdm === 'hidden' ? 'leave blank' : 'Yes or No'}`]; }), [''],
     ['VALID DEPARTMENTS (Employees sheet)'], ...db.departments.map(d => [d.code, d.name]), [''],
     ['VALID LOCATIONS (Employees sheet)'], ...db.locations.map(l => [l.code, l.name]),
   ];
