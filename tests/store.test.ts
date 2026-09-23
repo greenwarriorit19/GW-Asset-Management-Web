@@ -138,16 +138,6 @@ describe('Rules 3, 4, 7 — handover', () => {
     expect(s.asset(a.id)!.status).toBe('Assigned');
     expect(s.assetHistory(b.id)[0].reason).toMatch(/Removed from assignment/);
   });
-  it('employee logins need the shared database', async () => {
-    s.switchUser('U-SA');
-    await expect(s.createEmployeeLogin('E-006', 'password123')).rejects.toThrow(/Supabase/);
-    expect(s.employeeLogin('E-006')).toMatchObject({ employeeId: 'E-006' });   // seeded employee already has one
-    expect(s.employeeLogin('E-999')).toBeUndefined();
-    // An account that merely shares the address is not this employee's login.
-    const emp = s.getSnapshot().employees.find(e => e.id === 'E-008')!;   // no login of their own
-    s.saveUser({ id: 'U-SHARED', name: 'Shared Mailbox', email: emp.email, role: 'auditor', active: true });
-    expect(s.employeeLogin(emp.id)).toBeUndefined();
-  });
   it('inactive employee cannot receive assets', () => {
     s.switchUser('U-SA');
     const e = s.getSnapshot().employees.find(x => x.id === 'E-006')!;
@@ -204,10 +194,6 @@ describe('Transfer', () => {
     s.switchUser('U-DH-OPS'); s.approveTransfer(t.id, true, 'ok'); asAdmin(); s.completeTransfer(t.id, 'done');
     expect(s.asset(a.id)).toMatchObject({ status: 'Available', custodianEmployeeId: undefined, departmentId: 'D-OPS' });
   });
-  it('an employee can only request transfer of their own assets', () => {
-    s.switchUser('U-EMP2');
-    expect(() => s.requestTransfer({ assetId: 'GW-AST-MOB-0001', toEmployeeId: 'E-006', toDepartmentId: 'D-IT', toLocationId: 'L-HO', reason: 'want it', conditionAtTransfer: 'Good' })).toThrow(/assigned to you/);
-  });
 });
 
 describe('Repair', () => {
@@ -236,12 +222,11 @@ describe('Repair', () => {
 });
 
 describe('Rule 9 — lost / damaged', () => {
-  it('employee may report only own assets; report sets status and opens an approval', () => {
+  it('a report sets the status and opens an approval', () => {
     s.switchUser('U-EMP2');
-    expect(() => s.openIncident({ assetId: 'GW-AST-MOB-0001', type: 'Lost', incidentDate: '2026-09-22', reportedByEmployeeId: 'E-006', location: 'x', description: 'y', reason: 'zzz' })).toThrow(/assigned to you/);
     const inc = s.openIncident({ assetId: 'GW-AST-LAP-0002', type: 'Damaged', incidentDate: '2026-09-22', reportedByEmployeeId: 'E-006', location: 'HO', description: 'Cracked', reason: 'Dropped' });
     expect(s.asset('GW-AST-LAP-0002')).toMatchObject({ status: 'Damaged', condition: 'Damaged', custodianEmployeeId: 'E-006' });
-    expect(s.getSnapshot().approvals.find(x => x.entityId === inc.id)).toMatchObject({ approverRole: 'dept_head', decision: 'Pending Approval' });
+    expect(s.getSnapshot().approvals.find(x => x.entityId === inc.id)).toMatchObject({ approverRole: 'super_admin', decision: 'Pending Approval' });
   });
   it('investigation then approval applies the resolution (Repair keeps custody; Written Off retires)', () => {
     const a = newAsset(); issue(a.id);
@@ -330,35 +315,19 @@ describe('Reference numbering', () => {
 });
 
 describe('Roles and permissions', () => {
-  it('auditor is read-only', () => {
-    s.switchUser('U-AUD');
-    expect(() => s.registerAsset({} as never)).toThrow(/permit/);
-    expect(s.can('reports.view')).toBe(true); expect(s.can('audit.view')).toBe(true); expect(s.can('asset.register')).toBe(false);
-    expect(s.visibleAssets().length).toBe(26);
-  });
-  it('employee sees only own assets; department head only own department', () => {
-    s.switchUser('U-EMP2');
-    expect(s.visibleAssets().every(a => a.custodianEmployeeId === 'E-006')).toBe(true);
-    expect(s.visibleAssets().length).toBeGreaterThan(0);
-    s.switchUser('U-DH-OPS');
-    expect(s.visibleAssets().every(a => a.departmentId === 'D-OPS')).toBe(true);
-    expect(() => s.registerAsset({} as never)).toThrow(/permit/);
-  });
   it('permission matrix matches the specification', () => {
     expect(ROLE_PERMISSIONS.super_admin).toContain('users.manage');
-    expect(ROLE_PERMISSIONS.asset_admin).not.toContain('handover.approve');
     expect(ROLE_PERMISSIONS.asset_admin).not.toContain('disposal.approve');
-    expect(ROLE_PERMISSIONS.dept_head).toEqual(expect.arrayContaining(['handover.approve', 'transfer.approve', 'incident.approve']));
-    expect(ROLE_PERMISSIONS.employee).toEqual(expect.arrayContaining(['handover.acknowledge', 'incident.report', 'return.request', 'transfer.request']));
-    expect(ROLE_PERMISSIONS.employee).not.toContain('asset.register');
-    expect(ROLE_PERMISSIONS.auditor.every(p => !/create|register|edit|approve|record|upload|manage|perform|complete|inspect|request|\.report$/.test(p))).toBe(true);
+    expect(Object.keys(ROLE_PERMISSIONS)).toEqual(['super_admin', 'asset_admin']);   // only two roles ship
+    expect(ROLE_PERMISSIONS.asset_admin).toEqual(expect.arrayContaining(['asset.register', 'handover.create', 'return.inspect']));
+    expect(ROLE_PERMISSIONS.asset_admin).not.toContain('users.manage');
   });
   it('users and master data can be managed by Super Admin only', () => {
     expect(() => s.saveCategory({ id: 'C-X', code: 'PRN', name: 'Printer', verificationIntervalMonths: 6 })).toThrow(/permit/);
     s.switchUser('U-SA');
     s.saveCategory({ id: 'C-X', code: 'PRN', name: 'Printer', verificationIntervalMonths: 6 });
     expect(s.nextAssetId('C-X')).toBe('GW-AST-PRN-0001');
-    s.saveUser({ id: 'U-NEW', name: 'New', email: 'new@gw.in', role: 'employee', active: true });
+    s.saveUser({ id: 'U-NEW', name: 'New', email: 'new@gw.in', role: 'asset_admin', active: true });
     expect(s.getSnapshot().users.find(u => u.id === 'U-NEW')).toBeTruthy();
   });
 });
@@ -382,7 +351,10 @@ describe('Documents', () => {
     const d = s.getSnapshot().documents.find(x => x.attachment.driveId === 'abc')!;
     expect(d).toMatchObject({ assetId: 'GW-AST-MOB-0001', documentType: 'Photograph', uploadedByUserId: 'U-AA' });
     expect(s.getSnapshot().auditLogs[0].action).toBe('DOCUMENT_UPLOADED');
-    s.switchUser('U-AUD');
+    s.switchUser('U-SA');
+    s.saveRole({ code: 'viewer', name: 'Viewer', description: 'Read only', permissions: ['documents.view'], builtIn: false }, 'Read-only role');
+    s.saveUser({ id: 'U-VIEW', name: 'Viewer', email: 'viewer@gw.in', role: 'viewer', active: true });
+    s.switchUser('U-VIEW');
     expect(() => s.uploadDocument({ entityType: 'Asset', entityId: 'x', documentType: 'Other', attachment: { name: 'a', type: 't', size: 1 } })).toThrow(/permit/);
   });
 });
@@ -411,7 +383,7 @@ describe('Deleting users and employees', () => {
   });
   it('a user with activity cannot be deleted; the signed-in user and last Super Admin are protected', () => {
     s.switchUser('U-SA');
-    s.saveUser({ id: 'U-TMP', name: 'Temp Login', email: 'tmp@gw.in', role: 'employee', active: true });
+    s.saveUser({ id: 'U-TMP', name: 'Temp Login', email: 'tmp@gw.in', role: 'asset_admin', active: true });
     expect(s.userDeleteBlockers('U-TMP')).toEqual([]);
     s.deleteUser('U-TMP', 'Duplicate login');
     expect(s.user('U-TMP')).toBeUndefined();
@@ -437,25 +409,25 @@ describe('Custom roles', () => {
     expect(() => s.deleteRole('store_keeper', 'cleanup')).toThrow(/assigned to 1 user/);
     s.saveRole({ ...r, permissions: ['asset.view_own'] }, 'Reduced');
     s.switchUser('U-SK'); expect(s.can('handover.create')).toBe(false);
-    s.switchUser('U-SA'); s.saveUser({ id: 'U-SK', name: 'Store Keeper One', email: 'sk@gw.in', role: 'employee', active: true });
+    s.switchUser('U-SA'); s.saveUser({ id: 'U-SK', name: 'Store Keeper One', email: 'sk@gw.in', role: 'asset_admin', active: true });
     s.deleteRole('store_keeper', 'No longer needed');
     expect(s.roleDef('store_keeper')).toBeUndefined();
   });
   it('super_admin cannot be modified; built-in roles cannot be deleted; unknown role rejected on user', () => {
     s.switchUser('U-SA');
     expect(() => s.saveRole({ code: 'super_admin', name: 'X', permissions: ['audit.view'], builtIn: true })).toThrow(/cannot be modified/);
-    expect(() => s.deleteRole('employee', 'cleanup')).toThrow(/built-in/);
+    expect(() => s.deleteRole('asset_admin', 'cleanup')).toThrow(/built-in/);
     expect(() => s.saveUser({ id: 'U-X', name: 'X', email: 'x@gw.in', role: 'ghost', active: true })).toThrow(/valid role/);
     s.switchUser('U-AA');
     expect(() => s.saveRole({ code: 'x', name: 'X', permissions: ['audit.view'], builtIn: false })).toThrow(/permit/);
   });
   it('old saved data with plain role codes is migrated to role definitions', () => {
     const raw = JSON.parse(localStorage.getItem('gw-asset-management-db-v1')!);
-    raw.roles = ['super_admin', 'asset_admin', 'dept_head', 'employee', 'auditor'];
+    raw.roles = ['super_admin', 'asset_admin'];                       // v1 saved plain role codes
     localStorage.setItem('gw-asset-management-db-v1', JSON.stringify(raw));
     const again = new Store();
-    expect(again.roleDef('dept_head')?.permissions).toContain('handover.approve');
-    again.switchUser('U-EMP'); expect(again.can('handover.acknowledge')).toBe(true);
+    expect(again.roleDef('asset_admin')?.permissions).toContain('asset.register');
+    again.switchUser('U-AA'); expect(again.can('handover.create')).toBe(true);
   });
 });
 

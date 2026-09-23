@@ -6,7 +6,7 @@ import type { RoleDef } from './permissions';
 export type { RoleDef } from './permissions';
 
 /** Role code: one of the built-in codes or a custom role created under Users & Permissions. */
-export type Role = 'super_admin' | 'asset_admin' | 'dept_head' | 'employee' | 'auditor' | (string & {});
+export type Role = 'super_admin' | 'asset_admin' | (string & {});
 
 export type AssetStatus =
   | 'Available' | 'Reserved' | 'Assigned' | 'Transferred' | 'Returned'

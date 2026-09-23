@@ -27,11 +27,8 @@ create table if not exists roles (
   updated_at timestamptz not null default now()
 );
 insert into roles (code, name, description, built_in, permissions) values
-  ('super_admin','Super Admin','Complete system access; manages users, roles, categories and settings', true, array['asset.register','asset.edit','asset.view_all','asset.view_department','asset.view_own','handover.create','handover.approve','handover.acknowledge','return.create','return.inspect','return.request','transfer.request','transfer.approve','transfer.complete','repair.create','repair.approve','repair.complete','incident.report','incident.investigate','incident.approve','disposal.request','disposal.approve_retirement','disposal.record','disposal.approve','reports.view','reports.export','audit.view','documents.upload','documents.view','users.manage','settings.manage']),
-  ('asset_admin','Asset Administrator','Registers, issues, transfers, receives, repairs, retires and disposes of assets; generates reports', true, array['asset.register','asset.edit','asset.view_all','handover.create','return.create','return.inspect','transfer.request','transfer.complete','repair.create','repair.complete','incident.report','incident.investigate','disposal.request','disposal.record','reports.view','reports.export','audit.view','documents.upload','documents.view']),
-  ('dept_head','Department Head','Approves handovers, transfers, damage reports and returns; views department assets', true, array['asset.view_department','handover.approve','transfer.approve','transfer.request','incident.approve','incident.investigate','repair.approve','reports.view','reports.export','documents.view','incident.report','return.request']),
-  ('employee','Employee','Views assigned assets, accepts handovers, reports damage or loss, requests return or transfer', true, array['asset.view_own','handover.acknowledge','incident.report','return.request','transfer.request','documents.view']),
-  ('auditor','Auditor / Management','Read-only access to dashboards, history, documents and reports', true, array['asset.view_all','reports.view','reports.export','audit.view','documents.view'])
+  ('super_admin','Super Admin','Complete system access; manages users, roles, categories and settings', true, array['asset.register','asset.edit','asset.view_all','asset.view_department','asset.view_own','handover.create','return.create','return.inspect','return.request','transfer.request','transfer.approve','transfer.complete','repair.create','repair.approve','repair.complete','incident.report','incident.investigate','incident.approve','disposal.request','disposal.approve_retirement','disposal.record','disposal.approve','reports.view','reports.export','audit.view','documents.upload','documents.view','users.manage','settings.manage']),
+  ('asset_admin','Asset Administrator','Registers, issues, transfers, receives, repairs, retires and disposes of assets; generates reports', true, array['asset.register','asset.edit','asset.view_all','handover.create','return.create','return.inspect','transfer.request','transfer.complete','repair.create','repair.complete','incident.report','incident.investigate','disposal.request','disposal.record','reports.view','reports.export','audit.view','documents.upload','documents.view'])
 on conflict (code) do nothing;
 
 create table if not exists departments (
@@ -245,3 +242,6 @@ select count(*) as total_assets,
   count(*) filter (where status = 'Disposed') as disposed,
   coalesce(sum(purchase_cost) filter (where status <> 'Disposed'), 0) as total_purchase_value
 from assets;
+
+-- Only Super Admin and Asset Administrator remain; the other built-ins are removed where nobody holds them.
+delete from roles where code in ('dept_head','employee','auditor') and not exists (select 1 from users u where u.role = roles.code);

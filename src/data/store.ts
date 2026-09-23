@@ -39,6 +39,12 @@ export interface SessionState {
   sync: { state: 'idle' | 'saving' | 'saved' | 'error'; message?: string; at?: string };
 }
 
+/** Department Head, Employee and Auditor were retired: drop them wherever nobody still holds one. */
+const RETIRED_ROLES = ['dept_head', 'employee', 'auditor'];
+function dropRetiredRoles(roles: RoleDef[], users: User[]): RoleDef[] {
+  return roles.filter(r => !RETIRED_ROLES.includes(r.code) || users.some(u => u.role === r.code));
+}
+
 export class Store {
   private db: Database;
   private listeners = new Set<Listener>();
@@ -91,6 +97,7 @@ export class Store {
       await sb.signOut();
       throw new BusinessRuleError(`${email} is signed in, but has no user account in the Asset Management System. Ask the Super Admin to add it under Users & Permissions.`);
     }
+    db.roles = dropRetiredRoles(db.roles, db.users);
     this.db = db;
     this.lastCommitted = db;
     this.currentUser = user;
@@ -128,34 +135,6 @@ export class Store {
     const r = await sb.createAuthUser(u.email.trim(), password);
     this.snapshotBefore();
     this.audit(r === 'already_exists' ? 'LOGIN_EXISTS' : 'LOGIN_CREATED', 'User', userId, 'Login credentials for the Asset Management System', u.email);
-    this.commit();
-    return r;
-  }
-  /** The app login linked to an employee, if one has been created. Only an explicit link counts —
-   *  a shared email address must not make an unrelated account look like this employee's login. */
-  employeeLogin(employeeId: string): User | undefined {
-    return this.db.users.find(u => u.employeeId === employeeId);
-  }
-  /** Gives an employee a login for this app: an Employee-role user linked to the record, plus Supabase credentials. */
-  async createEmployeeLogin(employeeId: string, password: string): Promise<sb.CreateLoginResult> {
-    this.require('users.manage');
-    if (this.mode !== 'supabase') throw new BusinessRuleError('Logins exist only when the app is connected to Supabase.');
-    const e = this.employee(employeeId);
-    if (!e) throw new BusinessRuleError('Save the employee first, then create the login.');
-    const email = e.email.trim();
-    if (!email) throw new BusinessRuleError('Enter the employee’s email address first — it is the login name.');
-    if (password.length < 8) throw new BusinessRuleError('Password must be at least 8 characters.');
-    const taken = this.db.users.find(u => u.employeeId !== employeeId && u.email.trim().toLowerCase() === email.toLowerCase());
-    if (taken) throw new BusinessRuleError(`${email} is already the login of "${taken.name}" (${this.roleName(taken.role)}). Give this employee their own email address, or link that account to the employee on Users & Permissions.`);
-    const r = await sb.createAuthUser(email, password);
-    this.snapshotBefore();
-    const existing = this.employeeLogin(employeeId);
-    if (existing) {
-      this.db.users = this.db.users.map(u => u.id === existing.id ? { ...u, employeeId, email, departmentId: u.departmentId ?? e.departmentId } : u);
-    } else {
-      this.db.users = [...this.db.users, { id: `U-${Date.now().toString(36).toUpperCase()}`, name: e.name, email, role: 'employee', employeeId, departmentId: e.departmentId, active: true }];
-    }
-    this.audit(r === 'already_exists' ? 'LOGIN_EXISTS' : 'LOGIN_CREATED', 'Employee', employeeId, 'Login credentials for the Asset Management System', email);
     this.commit();
     return r;
   }
@@ -210,6 +189,7 @@ export class Store {
         const db = JSON.parse(raw) as Database;
         // Migration: older data stored roles as plain codes.
         if (!db.roles?.length || typeof db.roles[0] === 'string') db.roles = emptyDatabase().roles;
+        db.roles = dropRetiredRoles(db.roles, db.users);
         return db;
       }
     } catch { /* fall through */ }
@@ -683,7 +663,6 @@ export class Store {
     const a = this.asset(input.assetId);
     if (!a) throw new BusinessRuleError('Asset not found');
     if (!['Assigned', 'Available'].includes(a.status)) throw new BusinessRuleError(`Asset is ${a.status}; only Assigned or Available assets can be transferred.`);
-    if (this.currentUser.role === 'employee' && a.custodianEmployeeId !== this.currentUser.employeeId) throw new BusinessRuleError('You can only request transfer of assets assigned to you.');
     if (this.db.transfers.some(t => t.assetId === a.id && ['Awaiting Approval', 'Approved'].includes(t.status))) throw new BusinessRuleError('A transfer is already pending for this asset.');
     const id = this.nextRef('TR', this.db.transfers);
     const t: Transfer = {
@@ -692,7 +671,7 @@ export class Store {
       approval: 'Pending Approval', status: 'Awaiting Approval', createdAt: nowIso(),
     };
     this.db.transfers = [...this.db.transfers, t];
-    this.addApproval('Transfer', id, 'dept_head');
+    this.addApproval('Transfer', id, 'super_admin');
     this.audit('TRANSFER_REQUESTED', 'Transfer', id, input.reason);
     this.commit();
     return t;
@@ -763,7 +742,7 @@ export class Store {
     this.addTransaction({ type: 'REPAIR_SENT', assetId: a.id, reference: id, fromEmployeeId: a.custodianEmployeeId, toLocationId: 'L-WS', statusBefore: a.status, statusAfter: 'Under Repair', conditionBefore: a.condition, reason: input.reason, remarks: input.faultDescription });
     this.setAsset(a.id, { status: 'Under Repair' });
     this.attach(a.id, 'Repair', id, 'Quotation', input.quotation);
-    this.addApproval('Repair', id, 'dept_head');
+    this.addApproval('Repair', id, 'super_admin');
     this.audit('REPAIR_OPENED', 'Repair', id, input.reason, `Vendor ${input.vendor}, est. ₹${input.estimatedCost}`);
     this.commit();
     return r;
@@ -810,7 +789,6 @@ export class Store {
     this.requireReason(input.reason);
     const a = this.asset(input.assetId);
     if (!a) throw new BusinessRuleError('Asset not found');
-    if (this.currentUser.role === 'employee' && a.custodianEmployeeId !== this.currentUser.employeeId) throw new BusinessRuleError('You can only report incidents for assets assigned to you.');
     const id = this.nextRef('INC', this.db.incidents);
     const inc: Incident = { id, assetId: a.id, type: input.type, incidentDate: input.incidentDate, reportedByEmployeeId: input.reportedByEmployeeId, reportedByUserId: this.currentUser.id,
       location: input.location, description: input.description, policeReportNo: input.policeReportNo, approval: 'Pending Approval', status: 'Reported', createdAt: nowIso() };
@@ -818,7 +796,7 @@ export class Store {
     const after: AssetStatus = input.type === 'Lost' ? 'Lost' : 'Damaged';
     this.addTransaction({ type: 'INCIDENT', assetId: a.id, reference: id, fromEmployeeId: a.custodianEmployeeId, statusBefore: a.status, statusAfter: after, conditionBefore: a.condition, conditionAfter: input.type === 'Damaged' ? 'Damaged' : a.condition, reason: input.reason, remarks: input.description });
     this.setAsset(a.id, { status: after, condition: input.type === 'Damaged' ? 'Damaged' : a.condition });
-    this.addApproval('Incident', id, 'dept_head');
+    this.addApproval('Incident', id, 'super_admin');
     this.audit('INCIDENT_REPORTED', 'Incident', id, input.reason, `${input.type} – ${a.id}`);
     if (commit) this.commit();
     return inc;

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
+import { ALL_PERMISSIONS } from '../src/data/permissions';
 
 // Runs supabase/schema.sql against an in-process PostgreSQL so the migration is proven to apply
 // and the key database-side rules behave, before it is pasted into the Supabase SQL editor.
@@ -30,13 +31,13 @@ describe('supabase/schema.sql', () => {
   it('is idempotent — running the script twice is harmless', async () => {
     await db.exec(readFileSync('supabase/schema.sql', 'utf8'));
     const r = await db.query<{ n: number }>(`select count(*)::int as n from roles`);
-    expect(r.rows[0].n).toBe(5);
+    expect(r.rows[0].n).toBe(2);
   });
 
   it('seeds roles, master data and the Super Admin login', async () => {
     const roles = await db.query<{ code: string; n: number }>(`select code, cardinality(permissions) as n from roles order by code`);
-    expect(roles.rows.map(x => x.code).sort()).toEqual(['asset_admin', 'auditor', 'dept_head', 'employee', 'super_admin']);
-    expect(roles.rows.find(x => x.code === 'super_admin')!.n).toBe(31);
+    expect(roles.rows.map(x => x.code).sort()).toEqual(['asset_admin', 'super_admin']);
+    expect(roles.rows.find(x => x.code === 'super_admin')!.n).toBe(ALL_PERMISSIONS.length);
     const u = await db.query<{ id: string; role: string }>(`select id, role from users`);
     expect(u.rows).toEqual([{ id: 'U-SA', role: 'super_admin' }]);
     const c = await db.query<{ n: number }>(`select count(*)::int as n from asset_categories`);
@@ -125,7 +126,7 @@ describe('supabase/reset.sql', () => {
     const cols = await pg.query<{ column_name: string }>(`select column_name from information_schema.columns where table_name = 'asset_transactions'`);
     expect(cols.rows.map(c => c.column_name)).toContain('date');
     const r = await pg.query<{ n: number }>(`select count(*)::int as n from roles`);
-    expect(r.rows[0].n).toBe(5);
+    expect(r.rows[0].n).toBe(2);
   }, 60_000);
 });
 

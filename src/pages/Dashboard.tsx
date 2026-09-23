@@ -26,20 +26,11 @@ export function Dashboard() {
   const in30 = addMonths(today(), 1);
   const warranty = db.assets.filter(a => a.warrantyExpiry && a.warrantyExpiry >= today() && a.warrantyExpiry <= in30 && !['Disposed', 'Retired'].includes(a.status));
   const scope = store.can('asset.view_all') ? 'Organisation-wide' : store.can('asset.view_department') ? `Department: ${store.deptName(store.currentUser.departmentId)}` : 'My assets';
-  const mine = store.visibleAssets();
 
   return (
     <>
       <PageHead crumbs="Overview" title="Asset Dashboard" actions={<span className="muted small">{scope} · {fmtDateTime(new Date().toISOString())}</span>} />
 
-      {store.currentUser.role === 'employee' ? (
-        <Section title="Assets assigned to me" compact>
-          <table className="data"><thead><tr><th>Asset ID</th><th>Asset</th><th>Serial / IMEI</th><th>Condition</th><th>Status</th></tr></thead>
-            <tbody>{mine.length === 0 && <tr><td className="empty" colSpan={5}>No assets are currently assigned to you.</td></tr>}
-              {mine.map(a => <tr key={a.id} className="clickable" onClick={() => nav(`/assets/${a.id}`)}><td className="mono">{a.id}</td><td>{a.name}</td><td>{[a.serialNumber, a.imei].filter(Boolean).join(' / ')}</td><td>{a.condition}</td><td><Status value={a.status} /></td></tr>)}
-            </tbody></table>
-        </Section>
-      ) : null}
 
       <div className="grid cols-6" style={{ marginBottom: 18 }}>
         <div className="metric"><div className="label">Total Assets</div><div className="value">{m.total}</div><div className="sub">{fmtMoney(m.totalValue)} purchase value</div></div>

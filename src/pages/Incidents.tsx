@@ -23,7 +23,7 @@ export function Incidents() {
   const [desc, setDesc] = useState('');
   const [police, setPolice] = useState('');
   const [reason, setReason] = useState('');
-  const candidates = db.assets.filter(a => !['Lost', 'Retired', 'Disposed'].includes(a.status) && (u.role !== 'employee' || a.custodianEmployeeId === u.employeeId));
+  const candidates = db.assets.filter(a => !['Lost', 'Retired', 'Disposed'].includes(a.status));
 
   const [inv, setInv] = useState({ investigationNotes: '', responsibility: '', recoveryAction: '', recoveryAmount: '', resolution: 'Repair' as Incident['resolution'], reason: '' });
 
@@ -59,7 +59,7 @@ export function Incidents() {
               <Select label="Incident Type" required value={type} onChange={e => setType(e.target.value as 'Lost' | 'Damaged')} options={[{ value: 'Damaged', label: 'Damaged' }, { value: 'Lost', label: 'Lost' }]} />
               <ReadOnly label="Incident Reference" value={store.nextRef('INC', db.incidents)} />
               <DateInput label="Incident Date" required value={date} onChange={e => setDate(e.target.value)} />
-              <Select label="Reported By (Employee)" required value={reportedBy} onChange={e => setReportedBy(e.target.value)} placeholder="Select…" options={db.employees.map(e => ({ value: e.id, label: `${e.name} (${e.employeeCode})` }))} disabled={u.role === 'employee'} />
+              <Select label="Reported By (Employee)" required value={reportedBy} onChange={e => setReportedBy(e.target.value)} placeholder="Select…" options={db.employees.map(e => ({ value: e.id, label: `${e.name} (${e.employeeCode})` }))} />
               <Input label="Location of Incident" required value={location} onChange={e => setLocation(e.target.value)} />
               <Input label="Police / FIR Reference" value={police} onChange={e => setPolice(e.target.value)} hint="Required for lost mobile devices" />
               <TextArea label="Description of Incident" required span={2} value={desc} onChange={e => setDesc(e.target.value)} />

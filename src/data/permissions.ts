@@ -3,7 +3,7 @@
 
 export type Permission =
   | 'asset.register' | 'asset.edit' | 'asset.view_all' | 'asset.view_department' | 'asset.view_own'
-  | 'handover.create' | 'handover.approve' | 'handover.acknowledge'
+  | 'handover.create'
   | 'return.create' | 'return.inspect' | 'return.request'
   | 'transfer.request' | 'transfer.approve' | 'transfer.complete'
   | 'repair.create' | 'repair.approve' | 'repair.complete'
@@ -19,7 +19,7 @@ export const PERMISSION_GROUPS: { title: string; perms: { key: Permission; label
     { key: 'asset.view_all', label: 'View all assets (organisation-wide)' }, { key: 'asset.view_department', label: 'View own department\'s assets' }, { key: 'asset.view_own', label: 'View own assigned assets' },
   ] },
   { title: 'Handover / Return / Transfer', perms: [
-    { key: 'handover.create', label: 'Issue assets (create handover)' }, { key: 'handover.approve', label: 'Approve handovers' }, { key: 'handover.acknowledge', label: 'Acknowledge received assets' },
+    { key: 'handover.create', label: 'Assign assets to employees' },
     { key: 'return.create', label: 'Record returns' }, { key: 'return.inspect', label: 'Inspect returned assets' }, { key: 'return.request', label: 'Request a return' },
     { key: 'transfer.request', label: 'Request transfers' }, { key: 'transfer.approve', label: 'Approve transfers' }, { key: 'transfer.complete', label: 'Complete transfers' },
   ] },
@@ -55,18 +55,9 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     'verification.perform', 'disposal.request', 'disposal.record', 'reports.view', 'reports.export', 'audit.view',
     'documents.upload', 'documents.view',
   ],
-  dept_head: [
-    'asset.view_department', 'handover.approve', 'transfer.approve', 'transfer.request', 'incident.approve', 'incident.investigate',
-    'repair.approve', 'reports.view', 'reports.export', 'documents.view', 'incident.report', 'return.request',
-  ],
-  employee: ['asset.view_own', 'handover.acknowledge', 'incident.report', 'return.request', 'transfer.request', 'documents.view'],
-  auditor: ['asset.view_all', 'reports.view', 'reports.export', 'audit.view', 'documents.view'],
 };
 
 export const BUILT_IN_ROLES: RoleDef[] = [
   { code: 'super_admin', name: 'Super Admin', description: 'Complete system access; manages users, roles, categories and settings', permissions: ROLE_PERMISSIONS.super_admin, builtIn: true },
   { code: 'asset_admin', name: 'Asset Administrator', description: 'Registers, issues, transfers, receives, repairs, retires and disposes of assets; generates reports', permissions: ROLE_PERMISSIONS.asset_admin, builtIn: true },
-  { code: 'dept_head', name: 'Department Head', description: 'Approves handovers, transfers, damage reports and returns; views department assets', permissions: ROLE_PERMISSIONS.dept_head, builtIn: true },
-  { code: 'employee', name: 'Employee', description: 'Views assigned assets, accepts handovers, reports damage or loss, requests return or transfer', permissions: ROLE_PERMISSIONS.employee, builtIn: true },
-  { code: 'auditor', name: 'Auditor / Management', description: 'Read-only access to dashboards, history, documents and reports', permissions: ROLE_PERMISSIONS.auditor, builtIn: true },
 ];

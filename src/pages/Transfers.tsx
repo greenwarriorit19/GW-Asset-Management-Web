@@ -22,7 +22,7 @@ export function Transfers() {
   const [cond, setCond] = useState<Condition>(pre?.condition ?? 'Good');
   const [reason, setReason] = useState('');
   const asset = store.asset(assetId);
-  const candidates = db.assets.filter(a => ['Assigned', 'Available'].includes(a.status) && (u.role !== 'employee' || a.custodianEmployeeId === u.employeeId) && (u.role !== 'dept_head' || a.departmentId === u.departmentId));
+  const candidates = db.assets.filter(a => ['Assigned', 'Available'].includes(a.status));
 
   const rows = db.transfers.filter(t => store.can('asset.view_all') || t.fromEmployeeId === u.employeeId || t.toEmployeeId === u.employeeId || (store.can('asset.view_department') && [t.fromDepartmentId, t.toDepartmentId].includes(u.departmentId ?? ''))).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const columns: Column<Transfer>[] = [

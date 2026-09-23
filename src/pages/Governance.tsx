@@ -130,11 +130,6 @@ export function UsersPage() {
     }
     if (!(live && isNewUser)) setEdit(null);
   };
-  const [showEmpLogins, setShowEmpLogins] = useState(false);
-  // Staff logins created from an employee record are managed there; this page is for administrative accounts.
-  const isEmployeeLogin = (u: User) => u.role === 'employee' && !!u.employeeId;
-  const userRows = showEmpLogins ? db.users : db.users.filter(u => !isEmployeeLogin(u));
-  const empLoginCount = db.users.filter(isEmployeeLogin).length;
   const [roleEdit, setRoleEdit] = useState<RoleDef | null>(null);
   const [isNewRole, setIsNewRole] = useState(false);
   const roles = db.roles;
@@ -154,14 +149,10 @@ export function UsersPage() {
     <>
       <PageHead crumbs="Governance" title="Users, Roles and Permissions" actions={<>
         <button className="btn" onClick={() => { setIsNewRole(true); setRoleEdit({ code: '', name: '', description: '', permissions: [], builtIn: false }); }}>Add Role</button>
-        <button className="btn primary" onClick={() => { setLoginMsg(null); setPassword(''); setEdit({ id: `U-${Date.now().toString(36).toUpperCase()}`, name: '', email: '', role: 'employee', active: true }); }}>Add User</button>
+        <button className="btn primary" onClick={() => { setLoginMsg(null); setPassword(''); setEdit({ id: `U-${Date.now().toString(36).toUpperCase()}`, name: '', email: '', role: 'asset_admin', active: true }); }}>Add User</button>
       </>} />
       <Messages />
-      <Section title="Users" compact right={empLoginCount > 0
-        ? <label className="checkbox small" style={{ textTransform: 'none', letterSpacing: 0 }}><input type="checkbox" checked={showEmpLogins} onChange={e => setShowEmpLogins(e.target.checked)} /> Show {empLoginCount} employee login(s) — normally managed on the employee record</label>
-        : undefined}>
-        <DataTable rows={userRows} columns={columns} onRowClick={u => { setLoginMsg(null); setPassword(''); setEdit({ ...u }); }} />
-      </Section>
+      <Section title="Users" compact><DataTable rows={db.users} columns={columns} onRowClick={u => { setLoginMsg(null); setPassword(''); setEdit({ ...u }); }} /></Section>
 
       <Section title="Roles" compact right={<span className="muted small">Click a role to view or edit its permissions</span>}>
         <DataTable rows={roleRows} onRowClick={r => { setIsNewRole(false); setRoleEdit({ code: r.code, name: r.name, description: r.description, permissions: [...r.permissions], builtIn: r.builtIn }); }} columns={[
@@ -248,11 +239,6 @@ export function UsersPage() {
 }
 
 // ---------- Master data: employees, categories, departments, locations ----------
-const describeLogin = (r: 'created' | 'created_needs_confirmation' | 'already_exists', email: string) =>
-  r === 'created' ? `Login created for ${email}. They can sign in now.` :
-  r === 'created_needs_confirmation' ? `Login created. A confirmation email was sent to ${email}; they must click it before signing in.` :
-  `${email} already has a login — the password has not been changed. Use “Send password reset” if they cannot sign in.`;
-
 export function SettingsPage() {
   const { db, store } = useStore();
   const { run, Messages } = useAction();
@@ -263,14 +249,11 @@ export function SettingsPage() {
   const [driveMsg, setDriveMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [testing, setTesting] = useState(false);
   const [emp, setEmp] = useState<Employee | null>(null);
-  const [empPw, setEmpPw] = useState('');                 // initial password when giving an employee a login
-  const [empLoginMsg, setEmpLoginMsg] = useState<string | null>(null);
-  const [empLoginBusy, setEmpLoginBusy] = useState(false);
   const [cat, setCat] = useState<Category | null>(null);
   const [dep, setDep] = useState<Department | null>(null);
   const [loc, setLoc] = useState<Location | null>(null);
   const nextEmpCode = `GW-EMP-${String(db.employees.length + 1).padStart(4, '0')}`;
-  const openEmp = (e: Employee) => { setEmpPw(''); setEmpLoginMsg(null); setEmp(e); };
+  const openEmp = (e: Employee) => setEmp(e);
   return (
     <>
       <PageHead crumbs="Governance" title="Master Data & Settings" />
@@ -334,31 +317,16 @@ export function SettingsPage() {
         </div>
       </Section>}
 
-      {emp && <Modal title={emp.name || 'New Employee'} onClose={() => { setEmp(null); setEmpPw(''); setEmpLoginMsg(null); }} footer={<>
+      {emp && <Modal title={emp.name || 'New Employee'} onClose={() => setEmp(null)} footer={<>
           {db.employees.some(e => e.id === emp.id) && (() => { const blockers = store.employeeDeleteBlockers(emp.id); return (
             <button className="btn danger" style={{ marginRight: 'auto' }} title={blockers.length ? `Cannot delete: ${blockers.join('; ')}` : 'Permanently delete this employee'} disabled={blockers.length > 0}
               onClick={async () => { const reason = await askReason({ title: `Delete employee ${emp.name}`, message: 'This cannot be undone. The deletion and its reason are recorded in the audit log.' }); if (reason) { if (run(() => store.deleteEmployee(emp.id, reason), 'Employee deleted.') !== undefined) setEmp(null); } }}>
               {blockers.length ? 'Delete (has asset history — mark Inactive instead)' : 'Delete Employee'}
             </button>); })()}
-          <button className="btn ghost" onClick={() => { setEmp(null); setEmpPw(''); setEmpLoginMsg(null); }}>Cancel</button>
-          <button className="btn primary" disabled={empLoginBusy} onClick={async () => {
-            if (run(() => store.saveEmployee(emp), empPw ? undefined : 'Employee saved.') === undefined) return;
-            if (!empPw) { setEmp(null); return; }
-            setEmpLoginBusy(true);                                   // a password was typed: give them a login as part of saving
-            try { const r = await store.createEmployeeLogin(emp.id, empPw); setEmpPw(''); setEmpLoginMsg(null); setEmp(null); run(() => undefined, describeLogin(r, emp.email)); }
-            catch (err) { setEmpLoginMsg(err instanceof Error ? err.message : String(err)); }
-            finally { setEmpLoginBusy(false); } }}>{empLoginBusy ? 'Creating login…' : 'Save'}</button></>}>
+          <button className="btn ghost" onClick={() => setEmp(null)}>Cancel</button>
+          <button className="btn primary" onClick={() => { if (run(() => store.saveEmployee(emp), 'Employee saved.') !== undefined) setEmp(null); }}>Save</button></>}>
         {(() => {
           const saved = db.employees.some(x => x.id === emp.id);
-          const login = saved ? store.employeeLogin(emp.id) : undefined;
-          const live = store.mode === 'supabase';
-          const canLogin = store.can('users.manage');
-          const takenBy = emp.email.trim() ? db.users.find(u => u.employeeId !== emp.id && u.email.trim().toLowerCase() === emp.email.trim().toLowerCase()) : undefined;
-          const pwHint = !live ? 'Logins exist only when the app is connected to the shared database.'
-            : login ? 'This email ID already has a password. Passwords are never shown — send a reset link and they choose a new one.'
-            : takenBy ? `${emp.email} is already the login of "${takenBy.name}". Give this employee their own email address.`
-            : empPw.length === 0 ? 'Leave blank if this employee does not need to sign in. Type one and press Save to give them a login.'
-            : `${empPw.length < 8 ? `${empPw.length}/8 characters — at least 8 required` : `${empPw.length} characters ✓`} — the login is created when you press Save. Share it with the employee; they can change it later.`;
           return (
         <div className="form-grid cols-2">
           <Input label="Employee ID" required value={emp.employeeCode} onChange={e => setEmp({ ...emp, employeeCode: e.target.value })} />
@@ -370,17 +338,7 @@ export function SettingsPage() {
           <Select label="Work Location" value={emp.workLocationId} onChange={e => setEmp({ ...emp, workLocationId: e.target.value })} options={db.locations.map(l => ({ value: l.id, label: l.name }))} />
           <Input label="Mobile Number" value={emp.mobile} onChange={e => setEmp({ ...emp, mobile: e.target.value })} />
           {/* Email and password sit together: the email is the login name and the password is set beside it. */}
-          <Input label="Email ID" type="email" value={emp.email} onChange={e => setEmp({ ...emp, email: e.target.value })} hint={canLogin && live ? 'The employee signs in with this email ID.' : undefined} />
-          {canLogin && <div className="field">
-            <PasswordInput label="Password" minLength={8} autoComplete="new-password" className="nested"
-              disabled={!live || !!login} placeholder={login ? '••••••••' : 'At least 8 characters'} value={login ? '' : empPw} onChange={e => setEmpPw(e.target.value)} hint={pwHint} />
-            {live && login && <button type="button" className="linkish" disabled={empLoginBusy}
-              onClick={async () => { setEmpLoginBusy(true); setEmpLoginMsg(null);
-                try { await store.sendPasswordReset(login.id); setEmpLoginMsg(`Password reset link emailed to ${login.email}.`); }
-                catch (err) { setEmpLoginMsg(err instanceof Error ? err.message : String(err)); }
-                finally { setEmpLoginBusy(false); } }}>{empLoginBusy ? 'Sending…' : 'Send password reset'}</button>}
-            {empLoginMsg && <div className="alert" style={{ marginTop: 8, marginBottom: 0 }}>{empLoginMsg}</div>}
-          </div>}
+          <Input label="Email ID" type="email" value={emp.email} onChange={e => setEmp({ ...emp, email: e.target.value })} />
           <label className="checkbox field"><input type="checkbox" checked={emp.active} onChange={e => setEmp({ ...emp, active: e.target.checked })} /> Active (inactive employees cannot be assigned assets)</label>
           {saved && store.employeeDeleteBlockers(emp.id).length > 0 && <div className="alert" style={{ gridColumn: '1 / -1', marginBottom: 0 }}>This employee has asset history ({store.employeeDeleteBlockers(emp.id).join('; ')}). Records are never deleted — untick <b>Active</b> to retire the employee; their history stays on every asset.</div>}
         </div>); })()}

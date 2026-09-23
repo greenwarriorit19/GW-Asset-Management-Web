@@ -47,11 +47,12 @@ export function buildSeed(): Database {
   const users = [
     { id: 'U-SA', name: 'System Administrator', email: 'sysadmin@greenwarrior.in', role: 'super_admin' as const, active: true },
     { id: 'U-AA', name: 'M. Priya', email: 'priya@greenwarrior.in', role: 'asset_admin' as const, employeeId: 'E-002', departmentId: 'D-ADM', active: true },
-    { id: 'U-DH-OPS', name: 'K. Anbarasan', email: 'anbarasan@greenwarrior.in', role: 'dept_head' as const, employeeId: 'E-003', departmentId: 'D-OPS', active: true },
-    { id: 'U-DH-IT', name: 'A. Deepak', email: 'deepak@greenwarrior.in', role: 'dept_head' as const, employeeId: 'E-005', departmentId: 'D-IT', active: true },
-    { id: 'U-EMP', name: 'S. Karthik', email: 'karthik@greenwarrior.in', role: 'employee' as const, employeeId: 'E-004', departmentId: 'D-OPS', active: true },
-    { id: 'U-EMP2', name: 'V. Lakshmi', email: 'lakshmi@greenwarrior.in', role: 'employee' as const, employeeId: 'E-006', departmentId: 'D-IT', active: true },
-    { id: 'U-AUD', name: 'N. Raghavan', email: 'raghavan@greenwarrior.in', role: 'auditor' as const, employeeId: 'E-007', departmentId: 'D-FIN', active: true },
+    // Only two roles exist: Super Admin approves, Asset Administrator runs the day-to-day work.
+    { id: 'U-DH-OPS', name: 'K. Anbarasan', email: 'anbarasan@greenwarrior.in', role: 'super_admin' as const, employeeId: 'E-003', departmentId: 'D-OPS', active: true },
+    { id: 'U-DH-IT', name: 'A. Deepak', email: 'deepak@greenwarrior.in', role: 'super_admin' as const, employeeId: 'E-005', departmentId: 'D-IT', active: true },
+    { id: 'U-EMP', name: 'S. Karthik', email: 'karthik@greenwarrior.in', role: 'asset_admin' as const, employeeId: 'E-004', departmentId: 'D-OPS', active: true },
+    { id: 'U-EMP2', name: 'V. Lakshmi', email: 'lakshmi@greenwarrior.in', role: 'asset_admin' as const, employeeId: 'E-006', departmentId: 'D-IT', active: true },
+    { id: 'U-AUD', name: 'N. Raghavan', email: 'raghavan@greenwarrior.in', role: 'asset_admin' as const, employeeId: 'E-007', departmentId: 'D-FIN', active: true },
   ];
 
   type Row = [cat: string, n: number, name: string, mfr: string, model: string, sn: string, imei: string | undefined, sim: string | undefined,

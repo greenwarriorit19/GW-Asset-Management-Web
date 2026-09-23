@@ -70,4 +70,4 @@ numbering and document templates are independent of storage.
 
 ## Roles
 
-Super Admin · Asset Administrator · Department Head (scoped to own department) · Employee (own assets, report, request) · Auditor / Management (read-only). The full permission matrix is on **Users & Permissions**.
+Super Admin (complete access, approves) · Asset Administrator (registers, assigns, returns, transfers, repairs, retires). Employees do not sign in; further roles can be created on **Users & Permissions**.
