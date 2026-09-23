@@ -73,14 +73,16 @@ export function A4Document({ title, reference, date, qrText, children, signature
       </div>
       <div className="a4" ref={ref}>
         <div className="doc-header">
-          <div className="brand-block">
-            <img className="doc-logo" src={`${import.meta.env.BASE_URL}gw-logo.webp`} alt="" />
-            <div className="company">Green Warrior<sup>&reg;</sup><small>Solid Waste Management</small><small>{COMPANY_SUB}</small></div>
-          </div>
-          <div>
-            <div className="doc-title">{title}</div>
-            <div className="doc-meta">Reference No: <b>{reference}</b><br />Document Date: <b>{fmtDate(date)}</b></div>
-            {qr && <div className="qr"><img src={qr} alt="QR" /></div>}
+          <div className="doc-title">{title}</div>
+          <div className="doc-headline">
+            <div className="brand-block">
+              <img className="doc-logo" src={`${import.meta.env.BASE_URL}gw-logo.webp`} alt="" />
+              <div className="company">Green Warrior<sup>&reg;</sup><small>Solid Waste Management</small><small>{COMPANY_SUB}</small></div>
+            </div>
+            <div>
+              <div className="doc-meta">Reference No: <b>{reference}</b><br />Document Date: <b>{fmtDate(date)}</b></div>
+              {qr && <div className="qr"><img src={qr} alt="QR" /></div>}
+            </div>
           </div>
         </div>
         <div className="doc-body">{children}</div>

@@ -244,7 +244,8 @@ table.data .empty { text-align: center; color: var(--grey-500); padding: 24px; }
 .a4 { width: 210mm; min-height: 296mm; margin: 0 auto; background: var(--white); color: #111; padding: 16mm 16mm 18mm; border: 1px solid var(--grey-300); font-size: 13.5px; line-height: 1.4; position: relative; font-family: var(--font); display: flex; flex-direction: column; }
 .a4 .doc-body { flex: 0 0 auto; }
 .a4 .doc-bottom { margin-top: auto; padding-top: 16px; }
-.a4 .doc-header { display: grid; grid-template-columns: 1fr auto; gap: 12px; border-bottom: 2px solid var(--navy); padding-bottom: 8px; margin-bottom: 12px; align-items: end; }
+.a4 .doc-header { border-bottom: 2px solid var(--navy); padding-bottom: 8px; margin-bottom: 12px; }
+.a4 .doc-headline { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; margin-top: 8px; }
 /* Brand block: the registered logo beside the company name in the wordmark's typeface and green. */
 .a4 .brand-block { display: flex; align-items: center; gap: 10px; }
 .a4 .doc-logo { width: 62px; height: auto; flex: 0 0 auto; }
@@ -252,7 +253,7 @@ table.data .empty { text-align: center; color: var(--grey-500); padding: 24px; }
 .a4 .company sup { font-size: 9px; vertical-align: super; }
 .a4 .company small { display: block; font-family: var(--font); font-size: 12px; font-weight: 500; color: var(--grey-700); letter-spacing: 0.06em; text-transform: uppercase; }
 .a4 .company small + small { font-weight: 400; text-transform: none; letter-spacing: 0.04em; }
-.a4 .doc-title { font-size: 16px; font-weight: 700; color: var(--navy); text-transform: uppercase; letter-spacing: 0.06em; text-align: right; }
+.a4 .doc-title { font-size: 16px; font-weight: 700; color: var(--navy); text-transform: uppercase; letter-spacing: 0.06em; text-align: center; }
 .a4 .doc-meta { font-size: 12.5px; text-align: right; color: var(--grey-900); }
 .a4 .doc-meta b { color: var(--navy); }
 .a4 h4 { background: var(--grey-100); border-top: 1px solid var(--navy); border-bottom: 1px solid var(--grey-300); font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.08em; padding: 4px 8px; margin: 12px 0 6px; color: var(--grey-900); }
@@ -304,7 +305,7 @@ table.data .empty { text-align: center; color: var(--grey-500); padding: 24px; }
 
 /* ---------- Print ---------- */
 @media print {
-  @page { size: A4; margin: 0.1in; }                  /* preset: A4, centred with a 0.10in gap on every edge */
+  @page { size: A4; margin: 0.2in; }                  /* preset: A4, centred with a 0.20in gap on every edge */
   body { background: #fff; }
   .topbar, .sidebar, .doc-toolbar, .no-print, .page-head { display: none !important; }
   .shell { display: block; }
@@ -319,7 +320,7 @@ table.data .empty { text-align: center; color: var(--grey-500); padding: 24px; }
   .print-only-doc > :not(.a4) { display: none; }
   /* The page margin now comes from @page, so the sheet fills the printable area.
      The height is held at one page so the acknowledgement and signatures stay anchored to the bottom. */
-  .a4 { border: none; margin: 0 auto; width: auto; min-height: 291mm; padding: 0; page-break-after: always; box-shadow: none; }   /* min-height, so a long list still flows onto a second page */
+  .a4 { border: none; margin: 0 auto; width: auto; min-height: 286mm; padding: 0; page-break-after: always; box-shadow: none; }   /* min-height, so a long list still flows onto a second page */
   .a4 .signatures { grid-template-columns: repeat(4, 1fr) !important; }       /* paper is ~794px wide: keep one row */
   .a4 .signatures.cols-3 { grid-template-columns: repeat(3, 1fr) !important; }
   .a4:last-child { page-break-after: auto; }
