@@ -19,6 +19,8 @@
   --warn-bg: #FBF3E4;
   --info-bg: #E9EEF6;
   --font: 'Inter', 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  --font-brand: 'Montserrat', 'Inter', 'Segoe UI', system-ui, sans-serif;   /* the wordmark's typeface */
+  --brand-green: #454B1B;                                                   /* sampled from the wordmark */
   --sidebar-w: 240px;
   --topbar-h: 52px;
 }
@@ -35,7 +37,8 @@ code, .mono { font-family: 'Consolas', 'SFMono-Regular', Menlo, monospace; font-
 /* ---------- Application shell ---------- */
 .shell { display: grid; grid-template-columns: var(--sidebar-w) 1fr; grid-template-rows: var(--topbar-h) 1fr; min-height: 100vh; }
 .topbar { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; padding: 0 20px; background: var(--navy); color: var(--white); border-bottom: 1px solid var(--navy-700); position: sticky; top: 0; z-index: 30; }
-.topbar .brand { font-weight: 600; font-size: 14px; letter-spacing: 0.02em; text-transform: uppercase; white-space: nowrap; }
+.topbar .brand { display: flex; align-items: center; gap: 9px; font-family: var(--font-brand); font-weight: 700; font-size: 14px; letter-spacing: 0.02em; text-transform: uppercase; white-space: nowrap; }
+.topbar .brand img { width: 30px; height: auto; flex: 0 0 auto; }
 .topbar .brand small { display: block; font-weight: 400; font-size: 10.5px; opacity: 0.75; letter-spacing: 0.08em; }
 .topbar .spacer { flex: 1; }
 .topbar .user { display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
@@ -242,8 +245,13 @@ table.data .empty { text-align: center; color: var(--grey-500); padding: 24px; }
 .a4 .doc-body { flex: 0 0 auto; }
 .a4 .doc-bottom { margin-top: auto; padding-top: 16px; }
 .a4 .doc-header { display: grid; grid-template-columns: 1fr auto; gap: 12px; border-bottom: 2px solid var(--navy); padding-bottom: 8px; margin-bottom: 12px; align-items: end; }
-.a4 .company { font-size: 15px; font-weight: 700; color: var(--navy); text-transform: uppercase; letter-spacing: 0.04em; }
-.a4 .company small { display: block; font-size: 10px; font-weight: 400; color: var(--grey-700); letter-spacing: 0.06em; text-transform: none; }
+/* Brand block: the registered logo beside the company name in the wordmark's typeface and green. */
+.a4 .brand-block { display: flex; align-items: center; gap: 10px; }
+.a4 .doc-logo { width: 62px; height: auto; flex: 0 0 auto; }
+.a4 .company { font-family: var(--font-brand); font-size: 17px; font-weight: 800; color: var(--brand-green); text-transform: uppercase; letter-spacing: 0.02em; line-height: 1.1; }
+.a4 .company sup { font-size: 9px; vertical-align: super; }
+.a4 .company small { display: block; font-family: var(--font); font-size: 10px; font-weight: 500; color: var(--grey-700); letter-spacing: 0.06em; text-transform: uppercase; }
+.a4 .company small + small { font-weight: 400; text-transform: none; letter-spacing: 0.04em; }
 .a4 .doc-title { font-size: 14px; font-weight: 700; color: var(--navy); text-transform: uppercase; letter-spacing: 0.06em; text-align: right; }
 .a4 .doc-meta { font-size: 10.5px; text-align: right; color: var(--grey-900); }
 .a4 .doc-meta b { color: var(--navy); }
@@ -418,7 +426,8 @@ table.data tr:hover td { background: rgba(255,255,255,0.55); }
 
 /* A4 documents stay flat white for paper */
 .a4 { background: #fff; border-radius: 0; box-shadow: var(--shadow); backdrop-filter: none; -webkit-backdrop-filter: none; }
-.a4 .company, .a4 .doc-title, .a4 .doc-meta b, .a4 .sig .name, .a4 .sig .val { color: #020202; }
+.a4 .doc-title, .a4 .doc-meta b, .a4 .sig .name, .a4 .sig .val { color: #020202; }
+.a4 .company { color: var(--brand-green); }
 .a4 .doc-header { border-bottom-color: #020202; }
 .a4 h4 { background: #F2EDEB; border-top-color: #020202; }
 @media print { body { background: #fff; } .a4 { box-shadow: none; } }
@@ -465,8 +474,9 @@ table.data tr:hover td { background: rgba(255,255,255,0.55); }
 /* ---------- Sign-in card (dark) ---------- */
 .signin { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 380px; padding: 0 2em 2em; background-color: #171717; border: 1px solid #000; border-radius: 25px; box-shadow: 0 30px 70px rgba(2,2,2,0.45); transition: transform 0.4s ease-in-out; }
 .signin:hover { transform: scale(1.02); }
-.signin-brand { margin: 2.2em 0 0; color: #fff; font-weight: 700; font-size: 13.5px; text-transform: uppercase; letter-spacing: 0.05em; text-align: center; line-height: 1.35; }
-.signin-brand small { display: block; margin-top: 4px; font-weight: 400; font-size: 11px; letter-spacing: 0.06em; text-transform: none; color: #8d9099; }
+.signin-logo { display: block; width: 84px; height: auto; margin: 1.8em auto -0.2em; padding: 7px; background: rgba(255,255,255,0.94); border-radius: 50%; }   /* the emblem is dark: it needs a light disc on the dark card */
+.signin-brand { margin: 1.2em 0 0; font-family: var(--font-brand); color: #fff; font-weight: 700; font-size: 13.5px; text-transform: uppercase; letter-spacing: 0.05em; text-align: center; line-height: 1.35; }
+.signin-brand small { display: block; margin-top: 4px; font-family: var(--font); font-weight: 400; font-size: 11px; letter-spacing: 0.06em; text-transform: none; color: #8d9099; }
 .signin-heading { text-align: center; margin: 1.6em 0 1em; color: #fff; font-size: 1.2em; }
 .signin-field { display: flex; align-items: center; gap: 0.5em; border-radius: 25px; padding: 0.7em 1em; color: #fff; background-color: #171717; box-shadow: inset 2px 5px 10px rgb(5,5,5); }
 .signin-field:focus-within { box-shadow: inset 2px 5px 10px rgb(5,5,5), 0 0 0 1px #70798C; }

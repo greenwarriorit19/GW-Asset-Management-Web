@@ -47,7 +47,7 @@ export function Layout() {
     <div className="shell">
       <header className="topbar">
         <button className="menu-btn" onClick={() => setOpen(o => !o)} aria-label="Menu">☰</button>
-        <div className="brand">Green Warrior<small>Asset Management System</small></div>
+        <div className="brand"><img src={`${import.meta.env.BASE_URL}gw-logo.webp`} alt="" /><span>Green Warrior<small>Asset Management System</small></span></div>
         <div className="spacer" />
         <div className="user">
           {session.mode === 'supabase' && <span className={`sync sync-${session.sync.state}`} title={session.sync.message ?? ''}>{{ idle: 'Live', saving: 'Saving…', saved: 'Saved', error: 'Not saved' }[session.sync.state]}</span>}

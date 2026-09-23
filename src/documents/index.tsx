@@ -6,7 +6,7 @@ import { useStore } from '../data/context';
 import type { Asset, Handover, AssetReturn, Transfer, Repair, Incident, Disposal, Employee } from '../data/types';
 
 
-const ACK = '“I acknowledge that I have received the company assets listed above in the stated condition. I accept responsibility for their proper use, protection and return in accordance with company policy. I will immediately report any loss, damage or malfunction.”';
+const ACK = '“I understand that I have received the above listed assets and that they are to be used for solely company related duties. I also understand that I am responsible for maintaining these assets. I understand that upon termination of my employment, I am mandated to return these items to the company. In the absence of this return, the company has the right to withhold my final pay until the return of these assets. By signing this agreement, I acknowledge that I have received these assets from the company in good working conditions and I agree to the terms and conditions.”';
 
 /** Asset rows with each accessory as its own indented sub-row (i, ii, …). */
 function AssetItemsTable({ rows }: { rows: { asset?: Asset; assetId: string; condition?: string; quantity?: number; accessories?: string; remarks?: string }[] }) {

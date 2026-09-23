@@ -73,8 +73,9 @@ export function A4Document({ title, reference, date, qrText, children, signature
       </div>
       <div className="a4" ref={ref}>
         <div className="doc-header">
-          <div>
-            <div className="company">{COMPANY}<small>{COMPANY_SUB}</small></div>
+          <div className="brand-block">
+            <img className="doc-logo" src={`${import.meta.env.BASE_URL}gw-logo.webp`} alt="" />
+            <div className="company">Green Warrior<sup>&reg;</sup><small>Solid Waste Management</small><small>{COMPANY_SUB}</small></div>
           </div>
           <div>
             <div className="doc-title">{title}</div>

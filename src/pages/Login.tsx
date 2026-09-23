@@ -18,6 +18,7 @@ export function Login() {
   return (
     <div className="login-wrap">
       <form className="signin" onSubmit={submit}>
+        <img className="signin-logo" src={`${import.meta.env.BASE_URL}gw-logo.webp`} alt="" />
         <div className="signin-brand">{COMPANY}<small>Asset Management System</small></div>
         <p className="signin-heading">Login</p>
 
