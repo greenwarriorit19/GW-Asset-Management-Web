@@ -104,13 +104,13 @@ export function RegistrationDoc({ asset }: { asset: Asset }) {
   );
 }
 
-// 2. Asset Assignment to Employee Form
+// 2. Employee Asset Agreement Form
 export function HandoverDoc({ handover }: { handover: Handover }) {
   const { store } = useStore();
   const h = handover;
   const e = store.employee(h.employeeId);
   return (
-    <A4Document title="Asset Assignment to Employee Form" reference={h.id} date={h.date} qrText={`${window.location.origin}${window.location.pathname}#/handovers/${h.id}`}
+    <A4Document title="Employee Asset Agreement Form" reference={h.id} date={h.date} qrText={`${window.location.origin}${window.location.pathname}#/handovers/${h.id}`}
       acknowledgement={ACK}
       signatures={[
         { label: 'Employee Signature', value: h.employeeSignature, date: h.acknowledgedAt },

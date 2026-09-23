@@ -85,7 +85,7 @@ export function A4Document({ title, reference, date, qrText, children, signature
         <div className="doc-body">{children}</div>
         {(acknowledgement || signatures) && (
           <div className="doc-bottom">
-            {acknowledgement && <div className="ack">{acknowledgement}</div>}
+            {acknowledgement && <><h4>Acknowledgement</h4><div className="ack">{acknowledgement}</div></>}
             {signatures && (
               <div className={`signatures ${signatures.length === 3 ? 'cols-3' : ''}`}>
                 {signatures.map((s, i) => (
