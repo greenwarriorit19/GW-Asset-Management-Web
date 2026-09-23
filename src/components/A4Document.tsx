@@ -48,7 +48,7 @@ interface Props {
   date: string;
   qrText?: string;
   children: ReactNode;
-  signatures?: { label: string; value?: string; date?: string; sub?: string }[];
+  signatures?: { label: string; value?: string; date?: string; sub?: string; hideDate?: boolean }[];
   acknowledgement?: string;
   filename?: string;
 }
@@ -94,7 +94,7 @@ export function A4Document({ title, reference, date, qrText, children, signature
                     <div className="val">{s.value ?? ''}</div>
                     <div className="name">{s.label}</div>
                     {s.sub && <div className="muted">{s.sub}</div>}
-                    <div>Date: {s.date ? fmtDate(s.date) : '____________'}</div>
+                    {!s.hideDate && <div>Date: {s.date ? fmtDate(s.date) : '____________'}</div>}
                   </div>
                 ))}
               </div>

@@ -111,9 +111,8 @@ export function HandoverDoc({ handover }: { handover: Handover }) {
       acknowledgement={ACK}
       signatures={[
         { label: 'Employee Signature', value: h.employeeSignature, date: h.acknowledgedAt },
-        { label: 'Issued By', sub: personWithTitle(store, h.issuedByUserId).split(' — ')[1], date: h.date },
-        { label: 'Authorized Signatory', value: h.authorizedSignatoryUserId ? store.userName(h.authorizedSignatoryUserId) : undefined, sub: personWithTitle(store, h.authorizedSignatoryUserId).split(' — ')[1], date: h.acknowledgedAt },
-        { label: 'Department Head', value: undefined, sub: store.employee(store.department(store.employee(h.employeeId)?.departmentId)?.headEmployeeId)?.name },
+        { label: 'HR Department', date: h.date },
+        { label: 'Department Head', sub: store.employee(store.department(store.employee(h.employeeId)?.departmentId)?.headEmployeeId)?.name, hideDate: true },
       ]}>
       <EmployeeBlock e={e} />
       <h4>Assignment Details</h4>
