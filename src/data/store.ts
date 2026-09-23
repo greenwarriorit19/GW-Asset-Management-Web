@@ -131,11 +131,10 @@ export class Store {
     this.commit();
     return r;
   }
-  /** The app login linked to an employee, if one has been created. */
+  /** The app login linked to an employee, if one has been created. Only an explicit link counts —
+   *  a shared email address must not make an unrelated account look like this employee's login. */
   employeeLogin(employeeId: string): User | undefined {
-    const e = this.employee(employeeId);
-    return this.db.users.find(u => u.employeeId === employeeId)
-      ?? (e?.email ? this.db.users.find(u => u.email.trim().toLowerCase() === e.email.trim().toLowerCase()) : undefined);
+    return this.db.users.find(u => u.employeeId === employeeId);
   }
   /** Gives an employee a login for this app: an Employee-role user linked to the record, plus Supabase credentials. */
   async createEmployeeLogin(employeeId: string, password: string): Promise<sb.CreateLoginResult> {
@@ -146,6 +145,8 @@ export class Store {
     const email = e.email.trim();
     if (!email) throw new BusinessRuleError('Enter the employee’s email address first — it is the login name.');
     if (password.length < 8) throw new BusinessRuleError('Password must be at least 8 characters.');
+    const taken = this.db.users.find(u => u.employeeId !== employeeId && u.email.trim().toLowerCase() === email.toLowerCase());
+    if (taken) throw new BusinessRuleError(`${email} is already the login of "${taken.name}" (${this.roleName(taken.role)}). Give this employee their own email address, or link that account to the employee on Users & Permissions.`);
     const r = await sb.createAuthUser(email, password);
     this.snapshotBefore();
     const existing = this.employeeLogin(employeeId);

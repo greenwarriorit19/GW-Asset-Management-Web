@@ -59,7 +59,7 @@ function EmployeeBlock({ e, title = 'Employee Details' }: { e?: Employee; title?
         ['ERP ID', e?.erpId], ['Designation', e?.designation],
         ['Department', store.deptName(e?.departmentId)], ['Work Location', store.locName(e?.workLocationId)],
         ['Date of Joining', e ? fmtDate(e.dateOfJoining) : ''], ['Mobile Number', e?.mobile],
-        ['Email Address', e?.email],
+        ['Email Address', e?.email], ['Employee Status', e ? (e.active ? 'Active' : 'Inactive') : ''],
       ]} />
     </>
   );

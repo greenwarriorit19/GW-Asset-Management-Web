@@ -143,6 +143,10 @@ describe('Rules 3, 4, 7 — handover', () => {
     await expect(s.createEmployeeLogin('E-006', 'password123')).rejects.toThrow(/Supabase/);
     expect(s.employeeLogin('E-006')).toMatchObject({ employeeId: 'E-006' });   // seeded employee already has one
     expect(s.employeeLogin('E-999')).toBeUndefined();
+    // An account that merely shares the address is not this employee's login.
+    const emp = s.getSnapshot().employees.find(e => e.id === 'E-008')!;   // no login of their own
+    s.saveUser({ id: 'U-SHARED', name: 'Shared Mailbox', email: emp.email, role: 'auditor', active: true });
+    expect(s.employeeLogin(emp.id)).toBeUndefined();
   });
   it('inactive employee cannot receive assets', () => {
     s.switchUser('U-SA');

@@ -346,9 +346,11 @@ export function SettingsPage() {
           const login = saved ? store.employeeLogin(emp.id) : undefined;
           const live = store.mode === 'supabase';
           const canLogin = store.can('users.manage');
+          const takenBy = db.users.find(u => u.employeeId !== emp.id && u.email.trim().toLowerCase() === emp.email.trim().toLowerCase());
           const pwHint = !live ? 'Logins exist only when the app is connected to the shared database.'
             : !saved ? 'Save the employee first, then reopen this record to set a password.'
             : login ? 'This email ID already has a password. Passwords are never shown — send a reset link and they choose a new one.'
+            : takenBy ? `${emp.email} is already the login of "${takenBy.name}". Give this employee their own email address.`
             : `${empPw.length < 8 ? `${empPw.length}/8 characters — at least 8 required` : `${empPw.length} characters ✓`}, then press Create Login. Share it with the employee; they can change it later.`;   // the password for the email ID above
           return (
         <div className="form-grid cols-2">
