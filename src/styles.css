@@ -317,7 +317,7 @@ table.data .empty { text-align: center; color: var(--grey-500); padding: 24px; }
   /* Only the document prints — the cards, buttons and dialog chrome beside it are left out. */
   .main > *:not(.print-only-doc), .modal-body > *:not(.print-only-doc),
   .modal .modal-head, .modal .modal-foot, .sync-error { display: none !important; }
-  body:has(.modal-backdrop) .shell { display: none !important; }        /* a dialog prints its document alone */
+  body:has(.modal-backdrop) #root { display: none !important; }         /* a dialog prints its document alone (the dialog lives on <body>) */
   .modal-backdrop { position: static; padding: 0; background: none; overflow: visible; display: block; }
   .modal, .modal.wide { max-width: none; width: auto; border: none; box-shadow: none; background: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
   .modal .modal-body { padding: 0; }

@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode, type ChangeEvent } from 'react';
+import { createPortal } from 'react-dom';
 import type { Attachment } from '../data/types';
 import { SearchSelect, type Option } from './SearchSelect';
 import { askReason } from './Dialog';
@@ -33,15 +34,16 @@ export function Alert({ kind = 'info', children }: { kind?: 'info' | 'error' | '
 }
 
 export function Modal({ title, onClose, children, footer, wide }: { title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
-  return (
+  // Rendered on <body>, not inside the shell: printing hides the page behind the dialog, and the
+  // dialog itself must survive that (a document opened in a dialog is printed from there).
+  return createPortal(
     <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true">
         <div className="modal-head"><h3>{title}</h3><button className="btn sm ghost" onClick={onClose}>Close</button></div>
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}
       </div>
-    </div>
-  );
+    </div>, document.body);
 }
 
 // ---------- Form fields ----------
