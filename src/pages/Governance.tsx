@@ -140,7 +140,9 @@ export function UsersPage() {
     { key: 'dept', header: 'Department', render: u => store.deptName(u.departmentId) },
     { key: 'active', header: 'Status', render: u => <Status value={u.active ? 'Active' : 'Inactive'} /> },
     { key: 'login', header: 'Sign-in', render: u => live
-      ? (u.loginCreatedAt ? <Status value="Created" /> : <span className="muted small">Not created</span>)
+      ? (u.loginCreatedAt
+          ? <Status value="Confirmed" />
+          : <span className="muted small" title="No sign-in has been created from this app and this person has not signed in yet. They may still have one created directly in Supabase.">Not confirmed</span>)
       : <span className="muted small">—</span> },
     { key: 'actions', header: 'Actions', render: u => <RowActions label={`user ${u.name}`} blockers={store.userDeleteBlockers(u.id)} onEdit={() => { setLoginMsg(null); setPassword(''); setEdit({ ...u }); }} onDelete={reason => run(() => store.deleteUser(u.id, reason), 'User deleted.')} /> },
   ];

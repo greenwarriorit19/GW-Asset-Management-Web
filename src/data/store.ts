@@ -94,12 +94,18 @@ export class Store {
   /** Loads the database for a signed-in email and enters the app if that email has a user record. */
   private async enterWithEmail(email: string) {
     const db = await sb.loadDatabase();
-    const user = sb.matchUser(db, email);
+    let user = sb.matchUser(db, email);
     if (!user) {
       await sb.signOut();
       throw new BusinessRuleError(`${email} is signed in, but has no user account in the Asset Management System. Ask the Super Admin to add it under Users & Permissions.`);
     }
     db.roles = dropRetiredRoles(db.roles, db.users);
+    // Signing in proves this account has a sign-in, even one created outside the app.
+    if (!user.loginCreatedAt) {
+      const id = user.id;
+      db.users = db.users.map(u => u.id === id ? { ...u, loginCreatedAt: nowIso() } : u);
+      user = db.users.find(u => u.id === id)!;
+    }
     this.db = db;
     this.lastCommitted = db;
     this.currentUser = user;
