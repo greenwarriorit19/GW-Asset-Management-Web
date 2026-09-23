@@ -272,7 +272,7 @@ table.data .empty { text-align: center; color: var(--grey-500); padding: 24px; }
 .a4 table.list th.narrow, .a4 table.list td.narrow { width: 1%; white-space: nowrap; }
 .a4 table.list tr.sub td { color: var(--grey-900); background: var(--grey-50); font-size: 12px; }
 .a4 table.list tr.sub td:first-child { text-align: right; padding-right: 8px; }
-.a4 .ack { border: 1px solid var(--navy); padding: 8px 10px; margin-top: 0; font-size: 10.5px; }
+.a4 .ack { border: 1px solid #000; padding: 8px 10px; margin-top: 0; font-size: 10.5px; font-style: italic; }
 .a4 .signatures { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 30px; }
 .a4 .signatures.cols-3 { grid-template-columns: repeat(3, 1fr); }
 .a4 .sig { font-size: 12px; }
@@ -438,6 +438,11 @@ table.data tr:hover td { background: rgba(255,255,255,0.55); }
 .a4, .a4 h4, .a4 th, .a4 td, .a4 .doc-title, .a4 .doc-meta, .a4 .doc-meta b, .a4 .ack, .a4 .doc-footer,
 .a4 .sig, .a4 .sig .name, .a4 .sig .val, .a4 .muted, .a4 table.fields td.k, .a4 table.list tr.sub td { color: #000; }
 .a4 .company { color: var(--brand-green); }                      /* the wordmark keeps the brand colour */
+/* Every rule on the sheet is black too, so a photocopy keeps its grid. */
+.a4 table.fields td, .a4 table.list th, .a4 table.list td { border-color: #000; }
+.a4 h4 { border-top-color: #000; border-bottom-color: #000; }
+.a4 .doc-header, .a4 .doc-footer { border-color: #000; }
+.a4 .sig .val { border-color: #000; }
 .a4 .doc-header { border-bottom-color: #020202; }
 .a4 h4 { background: #F2EDEB; border-top-color: #020202; }
 @media print { body { background: #fff; } .a4 { box-shadow: none; } }
