@@ -245,7 +245,7 @@ table.data .empty { text-align: center; color: var(--grey-500); padding: 24px; }
 .a4 .doc-body { flex: 0 0 auto; }
 .a4 .doc-bottom { margin-top: auto; padding-top: 16px; }
 .a4 .doc-header { border-bottom: 2px solid var(--navy); padding-bottom: 8px; margin-bottom: 12px; }
-.a4 .doc-headline { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; }
+.a4 .doc-headline { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; align-items: center; }
 /* Brand block: the registered logo beside the company name in the wordmark's typeface and green. */
 .a4 .brand-block { display: flex; align-items: center; gap: 10px; }
 .a4 .doc-logo { width: 62px; height: auto; flex: 0 0 auto; }
