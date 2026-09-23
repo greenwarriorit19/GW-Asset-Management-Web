@@ -356,6 +356,13 @@ export class Store {
   }
 
   // ---------- Duplicate checks (Rule 2) ----------
+  /** A SIM connection has no name of its own: it is known by its operator and number. */
+  private autoName(a: { categoryId: string; manufacturer?: string; sim?: string; model?: string }): string {
+    const cat = this.category(a.categoryId);
+    if (!cat || !identifierNeeds(cat).identityOnly) return '';
+    return [a.manufacturer?.trim(), cat.name, a.sim?.trim()].filter(Boolean).join(' ').trim();
+  }
+
   /** Rule 2: the identifiers a category actually has must be filled in (a SIM needs its number, a phone its IMEI). */
   requireIdentifiers(a: { categoryId: string; serialNumber?: string; imei?: string; sim?: string }) {
     const cat = this.category(a.categoryId);
@@ -379,15 +386,16 @@ export class Store {
   registerAsset(input: Omit<Asset, 'id' | 'status' | 'registeredBy' | 'registeredAt' | 'custodianEmployeeId'> & { reason: string }): Asset {
     this.snapshotBefore();
     this.require('asset.register');
-    if (!input.name?.trim()) throw new BusinessRuleError('Asset name is required.');
     this.requireIdentifiers(input);
+    const name = input.name?.trim() || this.autoName(input);     // an identity-only category names itself
+    if (!name) throw new BusinessRuleError('Asset name is required.');
     const dup = this.checkDuplicates(input);
     if (dup.length) throw new BusinessRuleError(dup.join(' '));
     const id = this.nextAssetId(input.categoryId);
     const cat = this.category(input.categoryId)!;
     const { reason: _reason, ...fields } = input;          // `reason` belongs to the transaction / audit entry, not to the asset row
     const asset: Asset = {
-      ...fields, id, barcode: input.barcode || id, status: 'Available', registeredBy: this.currentUser.id, registeredAt: nowIso(),
+      ...fields, id, name, barcode: input.barcode || id, status: 'Available', registeredBy: this.currentUser.id, registeredAt: nowIso(),
       lastVerificationDate: input.lastVerificationDate || today(),
       nextVerificationDate: input.nextVerificationDate || addMonths(today(), cat.verificationIntervalMonths),
     };
@@ -411,17 +419,18 @@ export class Store {
     const seen = { sn: new Set<string>(), imei: new Set<string>(), sim: new Set<string>() };
     const u = (x?: string) => (x ?? '').trim().toUpperCase();
     rows.forEach((r, i) => {
-      if (!r.name?.trim() || !r.serialNumber?.trim()) throw new BusinessRuleError(`Row ${i + 1}: name and serial number are required.`);
+      if (!this.category(r.categoryId)) throw new BusinessRuleError(`Row ${i + 1}: category not found.`);
+      try { this.requireIdentifiers(r); } catch (e) { throw new BusinessRuleError(`Row ${i + 1}: ${e instanceof Error ? e.message : String(e)}`); }
+      if (!r.name?.trim() && !this.autoName(r)) throw new BusinessRuleError(`Row ${i + 1}: asset name is required.`);
       const dup = this.checkDuplicates(r);
       if (dup.length) throw new BusinessRuleError(`Row ${i + 1}: ${dup.join(' ')}`);
-      if (seen.sn.has(u(r.serialNumber)) || (r.imei && seen.imei.has(u(r.imei))) || (r.sim && seen.sim.has(u(r.sim)))) throw new BusinessRuleError(`Row ${i + 1}: duplicate serial / IMEI / SIM within the file.`);
-      seen.sn.add(u(r.serialNumber)); if (r.imei) seen.imei.add(u(r.imei)); if (r.sim) seen.sim.add(u(r.sim));
-      if (!this.category(r.categoryId)) throw new BusinessRuleError(`Row ${i + 1}: category not found.`);
+      if ((r.serialNumber && seen.sn.has(u(r.serialNumber))) || (r.imei && seen.imei.has(u(r.imei))) || (r.sim && seen.sim.has(u(r.sim)))) throw new BusinessRuleError(`Row ${i + 1}: duplicate serial / IMEI / SIM within the file.`);
+      if (r.serialNumber) seen.sn.add(u(r.serialNumber)); if (r.imei) seen.imei.add(u(r.imei)); if (r.sim) seen.sim.add(u(r.sim));
     });
     const ids: string[] = [];
     for (const r of rows) {
       const id = this.nextAssetId(r.categoryId);
-      const asset: Asset = { ...r, id, barcode: r.barcode || id, status: 'Available', registeredBy: this.currentUser.id, registeredAt: nowIso() };
+      const asset: Asset = { ...r, id, name: r.name?.trim() || this.autoName(r), barcode: r.barcode || id, status: 'Available', registeredBy: this.currentUser.id, registeredAt: nowIso() };
       this.db.assets = [...this.db.assets, asset];
       this.addTransaction({ type: 'REGISTRATION', assetId: id, statusBefore: 'Available', statusAfter: 'Available', conditionAfter: asset.condition, toDepartmentId: asset.departmentId, toLocationId: asset.locationId, reason, remarks: `Bulk import · Invoice ${asset.invoiceNumber}` });
       ids.push(id);

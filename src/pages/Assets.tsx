@@ -252,11 +252,9 @@ function AssetForm({ asset, onSaved, onClose }: { asset?: Asset; onSaved: (id: s
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const auto = ids.identityOnly ? {
-      name: f.name.trim() || [f.manufacturer.trim(), 'SIM', f.sim].filter(Boolean).join(' ').trim() || 'SIM',
-      purchaseDate: f.purchaseDate || today(), specification: undefined, accessories: undefined,
-      invoiceAttachment: undefined, warrantyAttachment: undefined, photo: undefined, warrantyStart: '', warrantyExpiry: '',
-    } : {};
+    // An identity-only category (a SIM) hides the name and procurement block; the store names the asset.
+    // Fields the form does not show are left exactly as they are — hiding a field must never erase it.
+    const auto = ids.identityOnly ? { purchaseDate: f.purchaseDate || today() } : {};
     const payload = { ...f, ...auto, purchaseCost: Number(f.purchaseCost) || 0, imei: needsField(ids.imei) ? f.imei || undefined : undefined, sim: needsField(ids.sim) ? f.sim || undefined : undefined, mdmRegistered: needsField(ids.mdm) ? !!f.mdmRegistered : undefined, warrantyStart: f.warrantyStart || undefined, warrantyExpiry: f.warrantyExpiry || undefined };
     if (asset) {
       const ok = run(() => store.updateAsset(asset.id, payload, reason), 'Asset updated.');

@@ -98,7 +98,7 @@ export function validateAssets(rows: Record<string, unknown>[], db: Database): P
     const ws = toDate(findCol(raw, 'Warranty Start Date')); if (g('Warranty Start Date') && !ws) e.push('Warranty Start Date not recognised');
     const we = toDate(findCol(raw, 'Warranty Expiry Date')); if (g('Warranty Expiry Date') && !we) e.push('Warranty Expiry Date not recognised');
     const data: AssetRow = {
-      name: g('Asset Name') || (need.identityOnly ? [g('Manufacturer'), 'SIM', g('SIM Number')].filter(Boolean).join(' ') : ''),
+      name: g('Asset Name'),                      // an identity-only row is named by the store from operator + number
       categoryId: cat ?? '', manufacturer: g('Manufacturer'), model: g('Model'), serialNumber: g('Serial Number'),
       imei: need.imei === 'hidden' ? undefined : g('IMEI Number') || undefined,
       sim: need.sim === 'hidden' ? undefined : g('SIM Number') || undefined,

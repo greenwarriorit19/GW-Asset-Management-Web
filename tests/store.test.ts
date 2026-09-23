@@ -85,6 +85,15 @@ describe('Rule 1 & 2 — unique Asset ID, duplicate serial / IMEI / SIM', () => 
 });
 
 describe('Rules 3, 4, 7 — handover', () => {
+  it('an identity-only asset names itself and keeps the fields its form hides', () => {
+    const sim = s.registerAsset({ categoryId: 'C-SIM', name: '', manufacturer: 'Jio', model: 'Postpaid', serialNumber: '8991X0001', sim: '9840055501',
+      ownershipType: 'Company Owned', supplierName: '', invoiceNumber: 'INV-9', poNumber: '', purchaseDate: '2026-01-01', purchaseCost: 199,
+      specification: '2 GB/day', accessories: 'Tray pin', condition: 'New', departmentId: 'D-ADM', locationId: 'L-HO', reason: 'New SIM' });
+    expect(sim.name).toBe('Jio SIM Card 9840055501');
+    s.updateAsset(sim.id, { manufacturer: 'Airtel' }, 'Operator corrected');
+    const after = s.asset(sim.id)!;
+    expect(after).toMatchObject({ manufacturer: 'Airtel', specification: '2 GB/day', accessories: 'Tray pin', invoiceNumber: 'INV-9' });
+  });
   it('the category decides which identifiers are required', () => {
     expect(() => s.registerAsset({ categoryId: 'C-SIM', name: 'Airtel connection', manufacturer: 'Airtel', model: 'Prepaid', serialNumber: '', ownershipType: 'Company Owned', supplierName: '', invoiceNumber: 'I', poNumber: '', purchaseDate: '2026-09-01', purchaseCost: 200, condition: 'New', departmentId: 'D-ADM', locationId: 'L-HO', reason: 'New SIM' })).toThrow(/SIM Number .* required for SIM Card/);
     const sim = s.registerAsset({ categoryId: 'C-SIM', name: 'Airtel connection', manufacturer: 'Airtel', model: 'Prepaid', serialNumber: '', sim: '9876500001', ownershipType: 'Company Owned', supplierName: '', invoiceNumber: 'I', poNumber: '', purchaseDate: '2026-09-01', purchaseCost: 200, condition: 'New', departmentId: 'D-ADM', locationId: 'L-HO', reason: 'New SIM' });
@@ -501,13 +510,13 @@ describe('Bulk import (Excel)', () => {
   it('imports valid assets in one commit with sequential IDs, transactions and a single audit entry; rejects duplicates atomically', () => {
     const base = { manufacturer: 'Samsung', model: 'A16', ownershipType: 'Company Owned' as const, supplierName: 'S', invoiceNumber: 'I', poNumber: '', purchaseDate: '2026-09-01', purchaseCost: 1000, condition: 'New' as const, departmentId: 'D-OPS', locationId: 'L-PM' };
     const txBefore = s.getSnapshot().transactions.length; const auditBefore = s.getSnapshot().auditLogs.length;
-    const ids = s.importAssets([{ ...base, name: 'A', categoryId: 'C-MOB', serialNumber: 'BULK-A' }, { ...base, name: 'B', categoryId: 'C-MOB', serialNumber: 'BULK-B', imei: '999' }, { ...base, name: 'C', categoryId: 'C-LAP', serialNumber: 'BULK-C' }], 'Excel import');
+    const ids = s.importAssets([{ ...base, name: 'A', categoryId: 'C-MOB', serialNumber: 'BULK-A', imei: '998' }, { ...base, name: 'B', categoryId: 'C-MOB', serialNumber: 'BULK-B', imei: '999' }, { ...base, name: 'C', categoryId: 'C-LAP', serialNumber: 'BULK-C' }], 'Excel import');
     expect(ids).toEqual(['GW-AST-MOB-0007', 'GW-AST-MOB-0008', 'GW-AST-LAP-0007']);
     expect(s.getSnapshot().transactions.length).toBe(txBefore + 3);
     expect(s.getSnapshot().auditLogs.length).toBe(auditBefore + 1);
     expect(s.asset('GW-AST-MOB-0008')).toMatchObject({ status: 'Available', imei: '999', barcode: 'GW-AST-MOB-0008' });
     const n = s.getSnapshot().assets.length;
-    expect(() => s.importAssets([{ ...base, name: 'D', categoryId: 'C-MOB', serialNumber: 'BULK-D' }, { ...base, name: 'E', categoryId: 'C-MOB', serialNumber: 'bulk-a' }], 'again')).toThrow(/Row 2.*already exists/);
+    expect(() => s.importAssets([{ ...base, name: 'D', categoryId: 'C-MOB', serialNumber: 'BULK-D', imei: '997' }, { ...base, name: 'E', categoryId: 'C-MOB', serialNumber: 'bulk-a', imei: '996' }], 'again')).toThrow(/Row 2.*already exists/);
     expect(s.getSnapshot().assets.length).toBe(n);      // nothing from the failed batch was written
   });
   it('imports employees, generating GW-EMP codes when blank', () => {
@@ -523,7 +532,9 @@ describe('Bulk import (Excel)', () => {
     const db = s.getSnapshot();
     const v = validateAssets([{ Category: 'SIM', Manufacturer: 'Airtel', Model: 'Prepaid', 'SIM Number': '9840000123' }], db);
     expect(v[0].errors).toEqual([]);
-    expect(v[0].data).toMatchObject({ name: 'Airtel SIM 9840000123', categoryId: 'C-SIM', sim: '9840000123' });
+    expect(v[0].data).toMatchObject({ categoryId: 'C-SIM', sim: '9840000123' });
+    const [id] = s.importAssets(v.map(x => x.data), 'SIM import');
+    expect(s.asset(id)!.name).toBe('Airtel SIM Card 9840000123');     // named by the store
   });
   it('template and upload round-trip through a real .xlsx file', async () => {
     const XLSX = await import('xlsx');

@@ -13,13 +13,16 @@ function AssetItemsTable({ rows }: { rows: { asset?: Asset; assetId: string; con
   const { store } = useStore();
   return (
     <table className="list">
-      <thead><tr><th className="narrow">#</th><th>Asset ID / Accessories</th><th>Asset Type</th><th>Make and Model</th><th className="idc">Serial No</th><th className="idc">IMEI No</th><th className="idc">SIM No</th><th className="narrow">Condition</th><th className="narrow">Qty</th><th>Remarks</th></tr></thead>
+      <thead><tr><th className="narrow">#</th><th>Asset ID / Accessories</th><th>Asset Type</th><th>Make and Model</th><th className="idc">Serial No</th><th className="idc">IMEI / SIM No</th><th className="narrow">Condition</th><th className="narrow">Qty</th><th>Remarks</th></tr></thead>
       <tbody>
         {rows.map((it, i) => { const a = it.asset ?? store.asset(it.assetId); const acc = parseAccessories(it.accessories); return (
           <Fragment key={it.assetId + i}>
             <tr><td>{i + 1}</td><td><b>{it.assetId}</b></td><td>{store.catName(a?.categoryId)}</td><td>{a ? `${a.manufacturer} ${a.model}` : ''}</td>
-              <td className="idc">{a?.serialNumber || '—'}</td><td className="idc">{a?.imei || '—'}</td><td className="idc">{a?.sim || '—'}</td><td className="narrow">{it.condition ?? a?.condition ?? ''}</td><td className="narrow">{it.quantity ?? 1}</td><td>{it.remarks ?? ''}</td></tr>
-            {acc.map((x, j) => <tr key={j} className="sub"><td>{roman(j + 1)}</td><td>Accessories</td><td>{x.name}</td><td>{x.model}</td><td></td><td></td><td></td><td></td><td>{x.qty}</td><td></td></tr>)}
+              <td className="idc">{a?.serialNumber || '—'}</td>
+              <td className="idc">{a?.imei || a?.sim
+                ? <>{a?.imei && <span className="idline"><i>IMEI</i>{a.imei}</span>}{a?.sim && <span className="idline"><i>SIM</i>{a.sim}</span>}</>
+                : '—'}</td><td className="narrow">{it.condition ?? a?.condition ?? ''}</td><td className="narrow">{it.quantity ?? 1}</td><td>{it.remarks ?? ''}</td></tr>
+            {acc.map((x, j) => <tr key={j} className="sub"><td>{roman(j + 1)}</td><td>Accessories</td><td>{x.name}</td><td>{x.model}</td><td></td><td></td><td></td><td>{x.qty}</td><td></td></tr>)}
           </Fragment>); })}
       </tbody>
     </table>
