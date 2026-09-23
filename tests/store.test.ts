@@ -94,6 +94,18 @@ describe('Rules 3, 4, 7 — handover', () => {
     const after = s.asset(sim.id)!;
     expect(after).toMatchObject({ manufacturer: 'Airtel', specification: '2 GB/day', accessories: 'Tray pin', invoiceNumber: 'INV-9' });
   });
+  it('a mis-registered asset can be deleted; one with history cannot', () => {
+    const a = newAsset();
+    expect(s.assetDeleteBlockers(a.id)).toEqual([]);
+    const txBefore = s.getSnapshot().transactions.length;
+    s.deleteAsset(a.id, 'Registered twice by mistake');
+    expect(s.asset(a.id)).toBeUndefined();
+    expect(s.getSnapshot().transactions.length).toBe(txBefore - 1);            // its registration entry goes too
+    expect(s.getSnapshot().auditLogs[0]).toMatchObject({ action: 'ASSET_DELETED', entityId: a.id });
+    const b = newAsset(); issue(b.id);                                          // now it has history
+    expect(s.assetDeleteBlockers(b.id).join('; ')).toMatch(/assigned|assignment record/);
+    expect(() => s.deleteAsset(b.id, 'no longer needed')).toThrow(/cannot be deleted/);
+  });
   it('the category decides which identifiers are required', () => {
     expect(() => s.registerAsset({ categoryId: 'C-SIM', name: 'Airtel connection', manufacturer: 'Airtel', model: 'Prepaid', serialNumber: '', ownershipType: 'Company Owned', supplierName: '', invoiceNumber: 'I', poNumber: '', purchaseDate: '2026-09-01', purchaseCost: 200, condition: 'New', departmentId: 'D-ADM', locationId: 'L-HO', reason: 'New SIM' })).toThrow(/SIM Number .* required for SIM Card/);
     const sim = s.registerAsset({ categoryId: 'C-SIM', name: 'Airtel connection', manufacturer: 'Airtel', model: 'Prepaid', serialNumber: '', sim: '9876500001', ownershipType: 'Company Owned', supplierName: '', invoiceNumber: 'I', poNumber: '', purchaseDate: '2026-09-01', purchaseCost: 200, condition: 'New', departmentId: 'D-ADM', locationId: 'L-HO', reason: 'New SIM' });
@@ -298,9 +310,9 @@ describe('Rules 5, 6, 11 — transactions, immutability, audit', () => {
   });
   it('the store exposes no way to edit or delete history', () => {
     const proto = Object.getOwnPropertyNames(Store.prototype);
-    // Only master-data deletes exist (and those refuse when history references the record). Never for history tables.
-    expect(proto.filter(m => /^(delete|remove)/i.test(m)).sort()).toEqual(['deleteCategory', 'deleteDepartment', 'deleteEmployee', 'deleteLocation', 'deleteRole', 'deleteUser']);
-    expect(proto.some(m => /(delete|remove).*(transaction|audit|handover|return|transfer|repair|incident|disposal|asset)/i.test(m))).toBe(false);
+    // Master-data deletes, plus an asset delete that refuses as soon as the asset has any history.
+    expect(proto.filter(m => /^(delete|remove)/i.test(m)).sort()).toEqual(['deleteAsset', 'deleteCategory', 'deleteDepartment', 'deleteEmployee', 'deleteLocation', 'deleteRole', 'deleteUser']);
+    expect(proto.some(m => /(delete|remove).*(transaction|audit|handover|return|transfer|repair|incident|disposal)/i.test(m))).toBe(false);
     expect(proto.filter(m => /(edit|update|set|delete|remove).*transaction|transaction.*(edit|update|set|delete|remove)/i.test(m))).toEqual([]);
   });
   it('a reason is mandatory on every action (Rule 11)', () => {

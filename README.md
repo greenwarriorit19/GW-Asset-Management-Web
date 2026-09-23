@@ -54,7 +54,7 @@ numbering and document templates are independent of storage.
 3. One active custodian per asset
 4. Only *Available* assets can be issued
 5. Every issue / return / transfer / repair / incident / verification / retirement / disposal writes a separate transaction
-6. Transactions and audit entries are never edited or deleted
+6. Transactions and audit entries are never edited or deleted; an asset can only be deleted while it has no history (a mis-registration), and its registration entry goes with it
 7. Assigning an asset needs no approval or signature: on submit the asset becomes *Assigned* to the employee
 8. Returns go to *Under Inspection*; inspection decides Available / Under Repair / Damaged (auto-opens an incident)
 9. Lost/damaged requires an incident report, investigation and approval

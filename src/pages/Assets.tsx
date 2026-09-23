@@ -6,12 +6,14 @@ import { today } from '../data/store';
 import { PageHead, Section, Status, DataTable, Input, Select, SearchSelect, TextArea, FileInput, AttachmentLink, ReadOnly, Modal, Alert, useAction, fmtDate, fmtDateTime, fmtMoney, fmtSize, type Column, DateInput } from '../components/ui';
 import { useQr, assetUrl } from '../components/A4Document';
 import { RegistrationDoc, AssetHistoryDoc } from '../documents';
+import { askDeleteWithPhrase } from '../components/Dialog';
 import { identifierNeeds, needsField } from '../lib/categoryFields';
 import { exportRows } from '../lib/export';
 
 // ---------- 3. Asset Inventory ----------
 export function AssetInventory() {
   const { db, store } = useStore();
+  const { runOk, Messages } = useAction();
   const nav = useNavigate();
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
@@ -55,6 +57,23 @@ export function AssetInventory() {
     { key: 'loc', header: 'Location', render: a => store.locName(a.locationId) },
     { key: 'cost', header: 'Cost', num: true, render: a => fmtMoney(a.purchaseCost) },
   ];
+  if (store.can('asset.edit')) columns.push({
+    key: 'actions', header: 'Actions', render: a => { const blockers = store.assetDeleteBlockers(a.id); return (
+      <div className="btn-row" style={{ flexWrap: 'nowrap', justifyContent: 'flex-end' }} onClick={e => e.stopPropagation()}>
+        <button type="button" className="btn sm danger" disabled={blockers.length > 0}
+          title={blockers.length ? `Cannot delete: ${blockers.join('; ')}` : `Delete ${a.id}`}
+          onClick={async () => {
+            const reason = await askDeleteWithPhrase({
+              title: `Delete ${a.id}`, confirmPhrase: a.id, confirmLabel: 'Delete asset',
+              message: 'This removes the asset and its registration entry for good. It is meant for a record created by mistake — an asset that has been in use must be retired and disposed of instead, so its history is kept.',
+              preview: [['Asset ID', a.id], ['Asset', `${a.name} · ${a.manufacturer} ${a.model}`.trim()], ['Category', store.catName(a.categoryId)],
+                ['Serial / IMEI / SIM', [a.serialNumber, a.imei, a.sim].filter(Boolean).join(' / ') || '—'],
+                ['Status', a.status], ['Purchase cost', fmtMoney(a.purchaseCost)]],
+              reason: { label: 'Reason for deleting', placeholder: 'e.g. Registered twice by mistake' },
+            });
+            if (reason) runOk(() => store.deleteAsset(a.id, reason), `${a.id} deleted.`);
+          }}>Delete</button>
+      </div>); } });
 
   return (
     <>
@@ -63,6 +82,7 @@ export function AssetInventory() {
         {store.can('asset.register') && <Link className="btn" to="/assets/import">Bulk Import</Link>}
         {store.can('asset.register') && <Link className="btn primary" to="/assets/register">Register Asset</Link>}
       </>} />
+      <Messages />
       <div className="toolbar">
         <input className="grow" placeholder="Search by Asset ID, name, serial, IMEI, SIM or custodian…" value={q} onChange={e => setQ(e.target.value)} />
         <SearchSelect className="tb" value={status} onChange={e => setStatus(e.target.value)} placeholder="All statuses" options={ASSET_STATUSES.map(s => ({ value: s, label: s }))} />

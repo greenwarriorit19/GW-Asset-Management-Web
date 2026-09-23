@@ -96,7 +96,7 @@ create index if not exists assets_custodian_idx on assets (custodian_employee_id
 
 -- ---------- Permanent history ----------
 create table if not exists asset_transactions (
-  id text primary key, type text not null, asset_id text not null references assets(id), date text not null, reference text,
+  id text primary key, type text not null, asset_id text not null references assets(id) on delete cascade, date text not null, reference text,
   from_employee_id text, to_employee_id text, from_department_id text, to_department_id text, from_location_id text, to_location_id text,
   status_before asset_status not null, status_after asset_status not null, condition_before asset_condition, condition_after asset_condition,
   performed_by_user_id text not null, performed_by_name text not null, reason text not null, remarks text,
@@ -170,14 +170,21 @@ create table if not exists asset_approvals (
   updated_at timestamptz not null default now()
 );
 create table if not exists asset_documents (
-  id text primary key, asset_id text references assets(id), entity_type text not null, entity_id text not null, document_type text not null,
+  id text primary key, asset_id text references assets(id) on delete cascade, entity_type text not null, entity_id text not null, document_type text not null,
   attachment jsonb not null, uploaded_by_user_id text not null, uploaded_at text not null, remarks text,
   updated_at timestamptz not null default now()
 );
 
 -- ---------- Rule 6: history is append-only ----------
 create or replace function forbid_change() returns trigger language plpgsql as $$
-begin raise exception 'Table % is append-only; rows cannot be updated or deleted', tg_table_name; end $$;
+begin
+  -- The one exception: when an asset itself is deleted (a mis-registration), its history goes with it.
+  -- The parent row is already gone by the time this fires, so its absence identifies the cascade.
+  if tg_op = 'DELETE' and tg_table_name = 'asset_transactions' then
+    if not exists (select 1 from assets a where a.id = old.asset_id) then return old; end if;
+  end if;
+  raise exception 'Table % is append-only; rows cannot be updated or deleted', tg_table_name;
+end $$;
 drop trigger if exists asset_transactions_immutable on asset_transactions;
 create trigger asset_transactions_immutable before update or delete on asset_transactions for each row execute function forbid_change();
 drop trigger if exists audit_logs_immutable on audit_logs;
@@ -245,3 +252,11 @@ from assets;
 
 -- Only Super Admin and Asset Administrator remain; the other built-ins are removed where nobody holds them.
 delete from roles where code in ('dept_head','employee','auditor') and not exists (select 1 from users u where u.role = roles.code);
+
+-- Added later: an asset's history and documents follow it when the asset row is deleted.
+alter table asset_transactions drop constraint if exists asset_transactions_asset_id_fkey;
+alter table asset_transactions add constraint asset_transactions_asset_id_fkey
+  foreign key (asset_id) references assets(id) on delete cascade;
+alter table asset_documents drop constraint if exists asset_documents_asset_id_fkey;
+alter table asset_documents add constraint asset_documents_asset_id_fkey
+  foreign key (asset_id) references assets(id) on delete cascade;

@@ -609,3 +609,7 @@ table.data.assign tr.assign-add td:first-child { background: transparent; border
 .field > .linkish { align-self: flex-start; background: none; border: none; padding: 2px 0; margin-top: 2px; font-family: inherit; font-size: 11.5px; font-weight: 600; color: var(--navy); text-decoration: underline; cursor: pointer; }
 .field > .linkish:hover { color: var(--slate); }
 .field > .linkish:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* Delete confirmation: the record about to go, shown as a compact preview. */
+.modal table.data.preview td { padding: 5px 8px; font-size: 12.5px; }
+.modal table.data.preview td.k { width: 42%; color: var(--grey-700); background: rgba(112,121,140,0.08); }

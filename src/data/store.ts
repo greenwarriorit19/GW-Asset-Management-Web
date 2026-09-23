@@ -998,6 +998,42 @@ export class Store {
     this.audit(exists ? 'USER_UPDATED' : 'USER_CREATED', 'User', u.id, `Role ${u.role}`);
     this.commit();
   }
+  /** Why an asset cannot be deleted — empty list means deletable. Only a mis-registration can go:
+   *  once an asset has been issued, returned, transferred, repaired or reported, its history stays. */
+  assetDeleteBlockers(id: string): string[] {
+    const b: string[] = [];
+    const a = this.asset(id);
+    if (!a) return ['asset not found'];
+    if (a.status !== 'Available') b.push(`it is ${a.status.toLowerCase()}`);
+    if (a.custodianEmployeeId) b.push('it has a custodian');
+    const moves = this.db.transactions.filter(t => t.assetId === id && t.type !== 'REGISTRATION').length;
+    if (moves) b.push(`${moves} movement(s) in its history`);
+    const n = (x: number, what: string) => { if (x) b.push(`${x} ${what}`); };
+    n(this.db.handovers.filter(h => h.items.some(i => i.assetId === id)).length, 'assignment record(s)');
+    n(this.db.returns.filter(r => r.assetId === id).length, 'return record(s)');
+    n(this.db.transfers.filter(t => t.assetId === id).length, 'transfer record(s)');
+    n(this.db.repairs.filter(r => r.assetId === id).length, 'repair record(s)');
+    n(this.db.incidents.filter(i => i.assetId === id).length, 'incident report(s)');
+    n(this.db.disposals.filter(d => d.assetId === id).length, 'retirement / disposal record(s)');
+    return b;
+  }
+  /** Deletes a wrongly-registered asset with its registration entry and documents. The audit log keeps the trace. */
+  deleteAsset(id: string, reason: string) {
+    this.snapshotBefore();
+    this.require('asset.edit');
+    this.requireReason(reason);
+    const a = this.asset(id);
+    if (!a) throw new BusinessRuleError('Asset not found');
+    const blockers = this.assetDeleteBlockers(id);
+    if (blockers.length) throw new BusinessRuleError(`${id} cannot be deleted: ${blockers.join('; ')}. Retire and dispose of it instead so the history is kept.`);
+    this.db.assets = this.db.assets.filter(x => x.id !== id);
+    this.db.transactions = this.db.transactions.filter(t => t.assetId !== id);     // the registration entry goes with it
+    this.db.documents = this.db.documents.filter(d => d.assetId !== id);
+    this.db.approvals = this.db.approvals.filter(x => !(x.entityType === 'Registration' && x.entityId === id));
+    this.audit('ASSET_DELETED', 'Asset', id, reason, `${a.name} · ${a.serialNumber || a.sim || a.imei || ''}`);
+    this.commit();
+  }
+
   /** Why an employee cannot be deleted (history must be kept) — empty list means deletable. */
   employeeDeleteBlockers(id: string): string[] {
     const b: string[] = [];
