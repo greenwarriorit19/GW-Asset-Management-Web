@@ -27,6 +27,23 @@ export function AssetInventory() {
       .sort((a, b) => a.id.localeCompare(b.id));
   }, [db, q, status, cat, dept, loc, store]);
 
+  // Counts for the cards above the register — always for what is currently filtered.
+  const sum = useMemo(() => {
+    const n = (...st: Asset['status'][]) => rows.filter(a => st.includes(a.status)).length;
+    return {
+      total: rows.length,
+      assigned: n('Assigned', 'Transferred'),
+      available: n('Available'),
+      returned: n('Under Inspection', 'Returned'),
+      repair: n('Under Repair'),
+      trouble: n('Damaged', 'Lost'),
+      closed: n('Retired', 'Disposed'),
+      active: rows.filter(a => !['Retired', 'Disposed', 'Lost'].includes(a.status)).length,
+      value: rows.reduce((t, a) => t + (a.purchaseCost || 0), 0),
+    };
+  }, [rows]);
+  const summaryTitle = `${cat ? store.catName(cat) : 'Asset'} Inventory Summary`;
+
   const columns: Column<Asset>[] = [
     { key: 'id', header: 'Asset ID', render: a => <span className="mono">{a.id}</span> },
     { key: 'name', header: 'Asset', render: a => <><div>{a.name}</div><div className="muted small">{a.manufacturer} {a.model}</div></> },
@@ -55,6 +72,18 @@ export function AssetInventory() {
         <SearchSelect className="tb" value={loc} onChange={e => setLoc(e.target.value)} placeholder="All locations" options={db.locations.map(l => ({ value: l.id, label: l.name }))} />
         <span className="muted small">{rows.length} of {store.visibleAssets().length}</span>
       </div>
+      <Section title={summaryTitle} compact className="inv-summary" right={<span className="muted small">{cat || status || dept || loc || q ? 'For the current filter' : 'All assets you can see'}</span>}>
+        <div className="grid cols-4">
+          <div className="metric"><div className="label">Total {cat ? store.catName(cat) : 'Assets'}</div><div className="value">{sum.total}</div><div className="sub">{fmtMoney(sum.value)} purchase value</div></div>
+          <div className="metric"><div className="label">Assigned to Employees</div><div className="value">{sum.assigned}</div><div className="sub">In an employee's custody</div></div>
+          <div className="metric"><div className="label">Available</div><div className="value">{sum.available}</div><div className="sub">Free to assign</div></div>
+          <div className="metric"><div className="label">Total Active</div><div className="value">{sum.active}</div><div className="sub">Excludes retired, disposed and lost</div></div>
+          <div className="metric"><div className="label">Returned</div><div className="value">{sum.returned}</div><div className="sub">Awaiting inspection</div></div>
+          <div className="metric"><div className="label">Under Repair</div><div className="value">{sum.repair}</div><div className="sub">With a vendor or workshop</div></div>
+          <div className="metric alert"><div className="label">Damaged / Lost</div><div className="value">{sum.trouble}</div><div className="sub">Reported, under investigation</div></div>
+          <div className="metric"><div className="label">Retired / Disposed</div><div className="value">{sum.closed}</div><div className="sub">Out of service</div></div>
+        </div>
+      </Section>
       <Section title="Asset Register" compact>
         <DataTable rows={rows} columns={columns} onRowClick={a => nav(`/assets/${a.id}`)} />
       </Section>

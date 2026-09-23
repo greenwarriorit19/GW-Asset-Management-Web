@@ -130,6 +130,11 @@ export function UsersPage() {
     }
     if (!(live && isNewUser)) setEdit(null);
   };
+  const [showEmpLogins, setShowEmpLogins] = useState(false);
+  // Staff logins created from an employee record are managed there; this page is for administrative accounts.
+  const isEmployeeLogin = (u: User) => u.role === 'employee' && !!u.employeeId;
+  const userRows = showEmpLogins ? db.users : db.users.filter(u => !isEmployeeLogin(u));
+  const empLoginCount = db.users.filter(isEmployeeLogin).length;
   const [roleEdit, setRoleEdit] = useState<RoleDef | null>(null);
   const [isNewRole, setIsNewRole] = useState(false);
   const roles = db.roles;
@@ -152,7 +157,11 @@ export function UsersPage() {
         <button className="btn primary" onClick={() => { setLoginMsg(null); setPassword(''); setEdit({ id: `U-${Date.now().toString(36).toUpperCase()}`, name: '', email: '', role: 'employee', active: true }); }}>Add User</button>
       </>} />
       <Messages />
-      <Section title="Users" compact><DataTable rows={db.users} columns={columns} onRowClick={u => { setLoginMsg(null); setPassword(''); setEdit({ ...u }); }} /></Section>
+      <Section title="Users" compact right={empLoginCount > 0
+        ? <label className="checkbox small" style={{ textTransform: 'none', letterSpacing: 0 }}><input type="checkbox" checked={showEmpLogins} onChange={e => setShowEmpLogins(e.target.checked)} /> Show {empLoginCount} employee login(s) — normally managed on the employee record</label>
+        : undefined}>
+        <DataTable rows={userRows} columns={columns} onRowClick={u => { setLoginMsg(null); setPassword(''); setEdit({ ...u }); }} />
+      </Section>
 
       <Section title="Roles" compact right={<span className="muted small">Click a role to view or edit its permissions</span>}>
         <DataTable rows={roleRows} onRowClick={r => { setIsNewRole(false); setRoleEdit({ code: r.code, name: r.name, description: r.description, permissions: [...r.permissions], builtIn: r.builtIn }); }} columns={[

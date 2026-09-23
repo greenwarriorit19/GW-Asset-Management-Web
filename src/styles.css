@@ -578,3 +578,7 @@ table.data.assign tr.assign-add td:first-child { background: transparent; border
 
 /* Open dropdown lists are portalled to <body> and positioned in fixed coordinates, so nothing clips them. */
 .ss-list.ss-pop { position: fixed; right: auto; top: auto; min-width: 180px; overflow-y: auto; color: var(--charcoal); }
+
+/* Inventory summary cards sit inside a compact section, so they need their own padding. */
+.section.inv-summary > .section-body { padding: 14px; }
+.section.inv-summary .metric { background: rgba(255,255,255,0.86); }
