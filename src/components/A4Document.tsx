@@ -3,7 +3,6 @@ import QRCode from 'qrcode';
 import { fmtDate } from './ui';
 
 export const COMPANY = 'Green Warrior Solid Waste Management';
-export const COMPANY_SUB = 'Asset Management System';
 
 /** Exports a DOM element as PDF (A4) or PNG using html2canvas + jsPDF, loaded on demand. */
 export async function exportElement(el: HTMLElement, filename: string, kind: 'pdf' | 'png') {
@@ -73,17 +72,17 @@ export function A4Document({ title, reference, date, qrText, children, signature
       </div>
       <div className="a4" ref={ref}>
         <div className="doc-header">
-          <div className="doc-title">{title}</div>
           <div className="doc-headline">
             <div className="brand-block">
               <img className="doc-logo" src={`${import.meta.env.BASE_URL}gw-logo.webp`} alt="" />
-              <div className="company">Green Warrior<sup>&reg;</sup><small>Solid Waste Management</small><small>{COMPANY_SUB}</small></div>
+              <div className="company">Green Warrior<sup>&reg;</sup><small>Solid Waste Management</small></div>
             </div>
             <div>
               <div className="doc-meta">Reference No: <b>{reference}</b><br />Document Date: <b>{fmtDate(date)}</b></div>
               {qr && <div className="qr"><img src={qr} alt="QR" /></div>}
             </div>
           </div>
+          <div className="doc-title">{title}</div>
         </div>
         <div className="doc-body">{children}</div>
         {(acknowledgement || signatures) && (
