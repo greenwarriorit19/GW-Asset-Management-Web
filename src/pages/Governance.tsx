@@ -1,5 +1,5 @@
 import { Fragment, useState, type FormEvent } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/context';
 import { type AuditLog, type AssetDocument, type Attachment, type User, type Role, type Employee, type Category, type Department, type Location, type RoleDef } from '../data/types';
 import { PERMISSION_GROUPS, type Permission } from '../data/store';
@@ -339,8 +339,8 @@ export function SettingsPage() {
           const canLogin = store.can('users.manage');
           const pwHint = !live ? 'Logins exist only when the app is connected to the shared database.'
             : !saved ? 'Save the employee first, then reopen this record to set a password.'
-            : login ? 'This employee already has a login. Passwords are never shown — send a reset link and they choose a new one.'
-            : `${empPw.length < 8 ? `${empPw.length}/8 characters — at least 8 required` : `${empPw.length} characters ✓`}, then press Create Login. Share it with the employee; they can change it later.`;
+            : login ? 'This email ID already has a password. Passwords are never shown — send a reset link and they choose a new one.'
+            : `${empPw.length < 8 ? `${empPw.length}/8 characters — at least 8 required` : `${empPw.length} characters ✓`}, then press Create Login. Share it with the employee; they can change it later.`;   // the password for the email ID above
           return (
         <div className="form-grid cols-2">
           <Input label="Employee ID" required value={emp.employeeCode} onChange={e => setEmp({ ...emp, employeeCode: e.target.value })} />
@@ -352,13 +352,13 @@ export function SettingsPage() {
           <Select label="Work Location" value={emp.workLocationId} onChange={e => setEmp({ ...emp, workLocationId: e.target.value })} options={db.locations.map(l => ({ value: l.id, label: l.name }))} />
           <Input label="Mobile Number" value={emp.mobile} onChange={e => setEmp({ ...emp, mobile: e.target.value })} />
           {/* Email and password sit together: the email is the login name and the password is set beside it. */}
-          <Input label="Email Address" type="email" value={emp.email} onChange={e => setEmp({ ...emp, email: e.target.value })} hint={canLogin && live ? 'The employee signs in with this address.' : undefined} />
-          {canLogin && <PasswordInput label={login ? 'Password' : 'Password (for the app login)'} minLength={8} autoComplete="new-password"
+          <Input label="Email ID" type="email" value={emp.email} onChange={e => setEmp({ ...emp, email: e.target.value })} hint={canLogin && live ? 'The employee signs in with this email ID.' : undefined} />
+          {canLogin && <PasswordInput label="Password" minLength={8} autoComplete="new-password"
             disabled={!live || !saved || !!login} placeholder={login ? '••••••••' : 'At least 8 characters'} value={login ? '' : empPw} onChange={e => setEmpPw(e.target.value)} hint={pwHint} />}
           <label className="checkbox field"><input type="checkbox" checked={emp.active} onChange={e => setEmp({ ...emp, active: e.target.checked })} /> Active (inactive employees cannot be assigned assets)</label>
           {canLogin && live && saved && (
             <div className="field" style={{ gridColumn: '1 / -1' }}>
-              <label>App Login{login && <> · <span className="mono small">{login.email}</span> <Status value="Active" /></>}</label>
+              <label>Login{login && <> · <span className="mono small">{login.email}</span> <Status value="Active" /></>}</label>
               <div className="btn-row" style={{ marginTop: 4 }}>
                 {!login && <button type="button" className="btn sm primary" disabled={empLoginBusy || empPw.length < 8 || !emp.email.trim()}
                   title={!emp.email.trim() ? 'Enter an email address first' : empPw.length < 8 ? 'Password must be at least 8 characters' : undefined}
@@ -373,7 +373,6 @@ export function SettingsPage() {
                     finally { setEmpLoginBusy(false); } }}>Send password reset</button>}
               </div>
               {empLoginMsg && <div className="alert" style={{ marginTop: 8, marginBottom: 0 }}>{empLoginMsg}</div>}
-              <p className="hint" style={{ marginTop: 6 }}>Employees see only their own assets. Wider access is granted on <Link to="/users">Users &amp; Permissions</Link>.</p>
             </div>
           )}
           {saved && store.employeeDeleteBlockers(emp.id).length > 0 && <div className="alert" style={{ gridColumn: '1 / -1', marginBottom: 0 }}>This employee has asset history ({store.employeeDeleteBlockers(emp.id).join('; ')}). Records are never deleted — untick <b>Active</b> to retire the employee; their history stays on every asset.</div>}
