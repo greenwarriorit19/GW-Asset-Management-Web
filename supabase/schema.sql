@@ -59,7 +59,7 @@ create table if not exists employees (
 
 create table if not exists users (
   id text primary key, name text not null, email text not null, role text not null references roles(code),
-  employee_id text references employees(id), department_id text references departments(id), active boolean not null default true,
+  employee_id text references employees(id), department_id text references departments(id), active boolean not null default true, login_created_at text,
   updated_at timestamptz not null default now()
 );
 create unique index if not exists users_email_uq on users (lower(email));
@@ -260,3 +260,6 @@ alter table asset_transactions add constraint asset_transactions_asset_id_fkey
 alter table asset_documents drop constraint if exists asset_documents_asset_id_fkey;
 alter table asset_documents add constraint asset_documents_asset_id_fkey
   foreign key (asset_id) references assets(id) on delete cascade;
+
+-- Added later: records when a sign-in was created for a user.
+alter table users add column if not exists login_created_at text;

@@ -143,6 +143,7 @@ export class Store {
     if (password.length < 8) throw new BusinessRuleError('Password must be at least 8 characters.');
     const r = await sb.createAuthUser(u.email.trim(), password);
     this.snapshotBefore();
+    this.db.users = this.db.users.map(x => x.id === userId ? { ...x, loginCreatedAt: nowIso() } : x);
     this.audit(r === 'already_exists' ? 'LOGIN_EXISTS' : 'LOGIN_CREATED', 'User', userId, 'Login credentials for the Asset Management System', u.email);
     this.commit();
     return r;

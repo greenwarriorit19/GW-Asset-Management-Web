@@ -31,6 +31,7 @@ export interface User {
   employeeId?: string;      // links to Employee.id when the user is also an employee
   departmentId?: string;
   active: boolean;
+  loginCreatedAt?: string;  // when the Supabase sign-in was created; blank means this person cannot sign in yet
 }
 
 export interface Department { id: string; code: string; name: string; headEmployeeId?: string }

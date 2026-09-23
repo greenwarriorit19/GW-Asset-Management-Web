@@ -119,16 +119,16 @@ export function UsersPage() {
     `${email} already has a login; use "Send password reset" if they cannot sign in.`;
   const saveUser = async () => {
     if (!edit) return;
-    if (live && isNewUser && password.length < 8) { setLoginMsg('Set an initial password of at least 8 characters.'); return; }
-    const ok = run(() => store.saveUser(edit), 'User saved.');
-    if (ok === undefined) return;
+    if (live && isNewUser && password.length < 8) { store.problem('Set an initial password of at least 8 characters so this person can sign in.'); return; }
+    if (!runOk(() => store.saveUser(edit), 'User saved.')) return;      // saveUser returns nothing: test the flag, not the value
     if (live && isNewUser) {
       setLoginBusy(true);
       try { const r = await store.createLogin(edit.id, password); setLoginMsg(describe(r, edit.email)); setPassword(''); }
-      catch (e) { setLoginMsg(`User saved, but the login was not created: ${e instanceof Error ? e.message : String(e)}`); return; }
+      catch (e) { store.problem(`The user was saved, but their sign-in was not created: ${e instanceof Error ? e.message : String(e)}`); return; }
       finally { setLoginBusy(false); }
+      return;                                                          // stay open so the result is read
     }
-    if (!(live && isNewUser)) setEdit(null);
+    setEdit(null);
   };
   const [roleEdit, setRoleEdit] = useState<RoleDef | null>(null);
   const [isNewRole, setIsNewRole] = useState(false);
@@ -139,6 +139,9 @@ export function UsersPage() {
     { key: 'emp', header: 'Employee', render: u => store.employee(u.employeeId)?.employeeCode ?? '—' },
     { key: 'dept', header: 'Department', render: u => store.deptName(u.departmentId) },
     { key: 'active', header: 'Status', render: u => <Status value={u.active ? 'Active' : 'Inactive'} /> },
+    { key: 'login', header: 'Sign-in', render: u => live
+      ? (u.loginCreatedAt ? <Status value="Created" /> : <span className="muted small">Not created</span>)
+      : <span className="muted small">—</span> },
     { key: 'actions', header: 'Actions', render: u => <RowActions label={`user ${u.name}`} blockers={store.userDeleteBlockers(u.id)} onEdit={() => { setLoginMsg(null); setPassword(''); setEdit({ ...u }); }} onDelete={reason => run(() => store.deleteUser(u.id, reason), 'User deleted.')} /> },
   ];
   const roleRows = roles.map(r => ({ ...r, id: r.code }));
