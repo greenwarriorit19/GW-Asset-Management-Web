@@ -361,11 +361,21 @@ export class Store {
   }
 
   // ---------- Duplicate checks (Rule 2) ----------
+  /** The id of a location with this code, when the database has one. Master data is the user's own,
+   *  so nothing may assume the ids that ship with a fresh database. */
+  private locByCode(code: string): string | undefined { return this.db.locations.find(l => l.code.toUpperCase() === code)?.id; }
+
   /** A SIM connection has no name of its own: it is known by its operator and number. */
   private autoName(a: { categoryId: string; manufacturer?: string; sim?: string; model?: string }): string {
     const cat = this.category(a.categoryId);
     if (!cat || !identifierNeeds(cat).identityOnly) return '';
     return [a.manufacturer?.trim(), cat.name, a.sim?.trim()].filter(Boolean).join(' ').trim();
+  }
+
+  /** Department and location must exist: a blank or unknown id is rejected by the database's foreign keys. */
+  private requirePlaces(a: { departmentId?: string; locationId?: string }) {
+    if (a.departmentId && !this.department(a.departmentId)) throw new BusinessRuleError('Select a department that exists in Master Data.');
+    if (a.locationId && !this.location(a.locationId)) throw new BusinessRuleError('Select a location that exists in Master Data.');
   }
 
   /** Rule 2: the identifiers a category actually has must be filled in (a SIM needs its number, a phone its IMEI). */
@@ -392,6 +402,7 @@ export class Store {
     this.snapshotBefore();
     this.require('asset.register');
     this.requireIdentifiers(input);
+    this.requirePlaces(input);
     const name = input.name?.trim() || this.autoName(input);     // an identity-only category names itself
     if (!name) throw new BusinessRuleError('Asset name is required.');
     const dup = this.checkDuplicates(input);
@@ -425,7 +436,7 @@ export class Store {
     const u = (x?: string) => (x ?? '').trim().toUpperCase();
     rows.forEach((r, i) => {
       if (!this.category(r.categoryId)) throw new BusinessRuleError(`Row ${i + 1}: category not found.`);
-      try { this.requireIdentifiers(r); } catch (e) { throw new BusinessRuleError(`Row ${i + 1}: ${e instanceof Error ? e.message : String(e)}`); }
+      try { this.requireIdentifiers(r); this.requirePlaces(r); } catch (e) { throw new BusinessRuleError(`Row ${i + 1}: ${e instanceof Error ? e.message : String(e)}`); }
       if (!r.name?.trim() && !this.autoName(r)) throw new BusinessRuleError(`Row ${i + 1}: asset name is required.`);
       const dup = this.checkDuplicates(r);
       if (dup.length) throw new BusinessRuleError(`Row ${i + 1}: ${dup.join(' ')}`);
@@ -476,6 +487,7 @@ export class Store {
     const before = this.asset(id);
     if (!before) throw new BusinessRuleError('Asset not found');
     this.requireIdentifiers({ ...before, ...patch });
+    this.requirePlaces({ ...before, ...patch });
     const dup = this.checkDuplicates({ ...before, ...patch }, id);
     if (dup.length) throw new BusinessRuleError(dup.join(' '));
     // Status and custody are never edited directly — they only change through transactions.
@@ -660,7 +672,9 @@ export class Store {
     const { reason: _r, ...inspection } = input;                         // reason → audit entry
     this.db.returns = this.db.returns.map(x => x.id === id ? { ...x, inspected: true, inspectedByUserId: this.currentUser.id, inspectionDate: today(), ...inspection, status: 'Completed' } : x);
     this.addTransaction({ type: 'INSPECTION', assetId: a.id, reference: id, statusBefore: a.status, statusAfter: after, conditionBefore: a.condition, conditionAfter: input.inspectionCondition, reason: `Inspection outcome: ${input.inspectionOutcome}. ${input.reason}`, remarks: input.inspectionNotes });
-    this.setAsset(a.id, { status: after, condition: input.inspectionCondition, departmentId: 'D-ADM', locationId: after === 'Under Repair' ? 'L-WS' : a.locationId });
+    // Back in stock: it keeps the department and location it is recorded at, unless it goes to a workshop.
+    const workshop = after === 'Under Repair' ? this.locByCode('WS') : undefined;
+    this.setAsset(a.id, { status: after, condition: input.inspectionCondition, locationId: workshop ?? a.locationId });
     if (input.inspectionOutcome === 'Damaged') {
       // Rule 9 — damaged assets need an incident report; open one automatically for the returning employee.
       this.openIncident({ assetId: a.id, type: 'Damaged', incidentDate: today(), reportedByEmployeeId: r.employeeId, location: this.locName(a.locationId), description: `Damage found on return inspection ${id}: ${input.inspectionNotes}`, reason: 'Auto-created from return inspection' }, false);
@@ -753,7 +767,7 @@ export class Store {
     const r: Repair = { id, assetId: a.id, reportedDate: today(), reportedByUserId: this.currentUser.id, faultDescription: input.faultDescription, vendor: input.vendor, estimatedCost: input.estimatedCost,
       expectedReturnDate: input.expectedReturnDate, quotation: input.quotation, approval: 'Pending Approval', status: 'Open', statusBeforeRepair: a.status, custodianBeforeRepair: a.custodianEmployeeId, createdAt: nowIso() };
     this.db.repairs = [...this.db.repairs, r];
-    this.addTransaction({ type: 'REPAIR_SENT', assetId: a.id, reference: id, fromEmployeeId: a.custodianEmployeeId, toLocationId: 'L-WS', statusBefore: a.status, statusAfter: 'Under Repair', conditionBefore: a.condition, reason: input.reason, remarks: input.faultDescription });
+    this.addTransaction({ type: 'REPAIR_SENT', assetId: a.id, reference: id, fromEmployeeId: a.custodianEmployeeId, toLocationId: this.locByCode('WS') ?? a.locationId, statusBefore: a.status, statusAfter: 'Under Repair', conditionBefore: a.condition, reason: input.reason, remarks: input.faultDescription });
     this.setAsset(a.id, { status: 'Under Repair' });
     this.attach(a.id, 'Repair', id, 'Quotation', input.quotation);
     this.addApproval('Repair', id, 'super_admin');
@@ -1090,6 +1104,7 @@ export class Store {
   saveEmployee(e: Employee) {
     this.snapshotBefore();
     this.require('settings.manage');
+    this.requirePlaces({ departmentId: e.departmentId, locationId: e.workLocationId });
     const exists = this.db.employees.some(x => x.id === e.id);
     this.db.employees = exists ? this.db.employees.map(x => x.id === e.id ? e : x) : [...this.db.employees, e];
     this.audit(exists ? 'EMPLOYEE_UPDATED' : 'EMPLOYEE_CREATED', 'Employee', e.id, e.employeeCode);

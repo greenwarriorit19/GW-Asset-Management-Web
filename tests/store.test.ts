@@ -187,6 +187,21 @@ describe('Rule 8 — return and inspection', () => {
       if (outcome === 'Damaged') expect(s.getSnapshot().incidents.find(i => i.assetId === a.id)).toMatchObject({ type: 'Damaged', reportedByEmployeeId: 'E-006', status: 'Reported' });
     }
   });
+  it('inspection never writes a department or location the database does not have', () => {
+    const a = newAsset(); issue(a.id);
+    s.createReturn({ assetId: a.id, conditionReported: 'Fair', accessoriesReturned: '', employeeSignature: 'x', reason: 'Returned for check' });
+    const r = s.getSnapshot().returns.find(x => x.assetId === a.id)!;
+    const before = s.asset(a.id)!;
+    s.inspectReturn(r.id, { inspectionCondition: 'Good', inspectionOutcome: 'Acceptable', inspectionNotes: 'ok', reason: 'Checked' });
+    const after = s.asset(a.id)!;
+    expect(after.departmentId).toBe(before.departmentId);                       // keeps what it had, no seeded id
+    expect(s.department(after.departmentId)).toBeTruthy();
+    expect(s.location(after.locationId)).toBeTruthy();
+  });
+  it('a department or location that does not exist is refused', () => {
+    expect(() => newAsset({ departmentId: 'D-GONE' })).toThrow(/department that exists/);
+    expect(() => newAsset({ locationId: 'L-GONE' })).toThrow(/location that exists/);
+  });
   it('an inspected return cannot be inspected twice', () => {
     const a = newAsset(); issue(a.id);
     const r = s.createReturn({ assetId: a.id, conditionReported: 'Good', accessoriesReturned: '', employeeSignature: 'x', reason: 'Returned' });
