@@ -340,18 +340,25 @@ export function SettingsPage() {
               onClick={async () => { const reason = await askReason({ title: `Delete employee ${emp.name}`, message: 'This cannot be undone. The deletion and its reason are recorded in the audit log.' }); if (reason) { if (run(() => store.deleteEmployee(emp.id, reason), 'Employee deleted.') !== undefined) setEmp(null); } }}>
               {blockers.length ? 'Delete (has asset history — mark Inactive instead)' : 'Delete Employee'}
             </button>); })()}
-          <button className="btn ghost" onClick={() => setEmp(null)}>Cancel</button><button className="btn primary" onClick={() => { if (run(() => store.saveEmployee(emp), 'Employee saved.') !== undefined) setEmp(null); }}>Save</button></>}>
+          <button className="btn ghost" onClick={() => { setEmp(null); setEmpPw(''); setEmpLoginMsg(null); }}>Cancel</button>
+          <button className="btn primary" disabled={empLoginBusy} onClick={async () => {
+            if (run(() => store.saveEmployee(emp), empPw ? undefined : 'Employee saved.') === undefined) return;
+            if (!empPw) { setEmp(null); return; }
+            setEmpLoginBusy(true);                                   // a password was typed: give them a login as part of saving
+            try { const r = await store.createEmployeeLogin(emp.id, empPw); setEmpPw(''); setEmpLoginMsg(null); setEmp(null); run(() => undefined, describeLogin(r, emp.email)); }
+            catch (err) { setEmpLoginMsg(err instanceof Error ? err.message : String(err)); }
+            finally { setEmpLoginBusy(false); } }}>{empLoginBusy ? 'Creating login…' : 'Save'}</button></>}>
         {(() => {
           const saved = db.employees.some(x => x.id === emp.id);
           const login = saved ? store.employeeLogin(emp.id) : undefined;
           const live = store.mode === 'supabase';
           const canLogin = store.can('users.manage');
-          const takenBy = db.users.find(u => u.employeeId !== emp.id && u.email.trim().toLowerCase() === emp.email.trim().toLowerCase());
+          const takenBy = emp.email.trim() ? db.users.find(u => u.employeeId !== emp.id && u.email.trim().toLowerCase() === emp.email.trim().toLowerCase()) : undefined;
           const pwHint = !live ? 'Logins exist only when the app is connected to the shared database.'
-            : !saved ? 'Save the employee first, then reopen this record to set a password.'
             : login ? 'This email ID already has a password. Passwords are never shown — send a reset link and they choose a new one.'
             : takenBy ? `${emp.email} is already the login of "${takenBy.name}". Give this employee their own email address.`
-            : `${empPw.length < 8 ? `${empPw.length}/8 characters — at least 8 required` : `${empPw.length} characters ✓`}, then press Create Login. Share it with the employee; they can change it later.`;   // the password for the email ID above
+            : empPw.length === 0 ? 'Leave blank if this employee does not need to sign in. Type one and press Save to give them a login.'
+            : `${empPw.length < 8 ? `${empPw.length}/8 characters — at least 8 required` : `${empPw.length} characters ✓`} — the login is created when you press Save. Share it with the employee; they can change it later.`;
           return (
         <div className="form-grid cols-2">
           <Input label="Employee ID" required value={emp.employeeCode} onChange={e => setEmp({ ...emp, employeeCode: e.target.value })} />
@@ -364,28 +371,17 @@ export function SettingsPage() {
           <Input label="Mobile Number" value={emp.mobile} onChange={e => setEmp({ ...emp, mobile: e.target.value })} />
           {/* Email and password sit together: the email is the login name and the password is set beside it. */}
           <Input label="Email ID" type="email" value={emp.email} onChange={e => setEmp({ ...emp, email: e.target.value })} hint={canLogin && live ? 'The employee signs in with this email ID.' : undefined} />
-          {canLogin && <PasswordInput label="Password" minLength={8} autoComplete="new-password"
-            disabled={!live || !saved || !!login} placeholder={login ? '••••••••' : 'At least 8 characters'} value={login ? '' : empPw} onChange={e => setEmpPw(e.target.value)} hint={pwHint} />}
+          {canLogin && <div className="field">
+            <PasswordInput label="Password" minLength={8} autoComplete="new-password" className="nested"
+              disabled={!live || !!login} placeholder={login ? '••••••••' : 'At least 8 characters'} value={login ? '' : empPw} onChange={e => setEmpPw(e.target.value)} hint={pwHint} />
+            {live && login && <button type="button" className="linkish" disabled={empLoginBusy}
+              onClick={async () => { setEmpLoginBusy(true); setEmpLoginMsg(null);
+                try { await store.sendPasswordReset(login.id); setEmpLoginMsg(`Password reset link emailed to ${login.email}.`); }
+                catch (err) { setEmpLoginMsg(err instanceof Error ? err.message : String(err)); }
+                finally { setEmpLoginBusy(false); } }}>{empLoginBusy ? 'Sending…' : 'Send password reset'}</button>}
+            {empLoginMsg && <div className="alert" style={{ marginTop: 8, marginBottom: 0 }}>{empLoginMsg}</div>}
+          </div>}
           <label className="checkbox field"><input type="checkbox" checked={emp.active} onChange={e => setEmp({ ...emp, active: e.target.checked })} /> Active (inactive employees cannot be assigned assets)</label>
-          {canLogin && live && saved && (
-            <div className="field" style={{ gridColumn: '1 / -1' }}>
-              <label>Login{login && <> · <span className="mono small">{login.email}</span> <Status value="Active" /></>}</label>
-              <div className="btn-row" style={{ marginTop: 4 }}>
-                {!login && <button type="button" className="btn sm primary" disabled={empLoginBusy || empPw.length < 8 || !emp.email.trim()}
-                  title={!emp.email.trim() ? 'Enter an email address first' : empPw.length < 8 ? 'Password must be at least 8 characters' : undefined}
-                  onClick={async () => { setEmpLoginBusy(true); setEmpLoginMsg(null);
-                    try { const r = await store.createEmployeeLogin(emp.id, empPw); setEmpLoginMsg(describeLogin(r, emp.email)); setEmpPw(''); }
-                    catch (err) { setEmpLoginMsg(err instanceof Error ? err.message : String(err)); }
-                    finally { setEmpLoginBusy(false); } }}>{empLoginBusy ? 'Creating login…' : 'Create Login'}</button>}
-                {login && <button type="button" className="btn sm" disabled={empLoginBusy}
-                  onClick={async () => { setEmpLoginBusy(true); setEmpLoginMsg(null);
-                    try { await store.sendPasswordReset(login.id); setEmpLoginMsg(`Password reset link emailed to ${login.email}.`); }
-                    catch (err) { setEmpLoginMsg(err instanceof Error ? err.message : String(err)); }
-                    finally { setEmpLoginBusy(false); } }}>Send password reset</button>}
-              </div>
-              {empLoginMsg && <div className="alert" style={{ marginTop: 8, marginBottom: 0 }}>{empLoginMsg}</div>}
-            </div>
-          )}
           {saved && store.employeeDeleteBlockers(emp.id).length > 0 && <div className="alert" style={{ gridColumn: '1 / -1', marginBottom: 0 }}>This employee has asset history ({store.employeeDeleteBlockers(emp.id).join('; ')}). Records are never deleted — untick <b>Active</b> to retire the employee; their history stays on every asset.</div>}
         </div>); })()}
       </Modal>}
